@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -49,6 +50,8 @@ class UserController extends Controller
             'password' => Hash::make($data['password']),
         ])->save();
 
+        ActivityLogger::record('User Management', 'Created', "User account created with role {$user->role}.", $user, $this->label($user));
+
         return response()->json($this->transform($user), 201);
     }
 
@@ -86,6 +89,19 @@ class UserController extends Controller
 
         $user->forceFill($data)->save();
 
+        $changes = ActivityLogger::changes($user);
+
+        if ($changes) {
+            $action = match (true) {
+                isset($changes['status']) && $user->status === 'Inactive' => 'Deactivated',
+                isset($changes['status']) => 'Reactivated',
+                isset($changes['role']) => 'Role changed',
+                default => 'Updated',
+            };
+
+            ActivityLogger::record('User Management', $action, 'Updated ' . ActivityLogger::fieldList($changes) . '.', $user, $this->label($user), $changes);
+        }
+
         // A deactivated user should be logged out everywhere.
         if (($data['status'] ?? null) === 'Inactive' && method_exists($user, 'tokens')) {
             $user->tokens()->delete();
@@ -105,11 +121,18 @@ class UserController extends Controller
 
         $user->forceFill(['password' => Hash::make($data['password'])])->save();
 
+        ActivityLogger::record('User Management', 'Password reset', 'Password reset by an administrator; the user was logged out everywhere.', $user, $this->label($user));
+
         if (method_exists($user, 'tokens')) {
             $user->tokens()->delete();
         }
 
         return response()->json(['message' => 'Password reset.']);
+    }
+
+    private function label(User $user): string
+    {
+        return $user->username ? "{$user->name} (@{$user->username})" : $user->name;
     }
 
     private function requireAdministrator(Request $request): void

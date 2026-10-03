@@ -1,0 +1,380 @@
+/* All styles belong to SeniorIds.jsx; layout and colors follow Burial.css. */
+.scms-sid {
+  --sid-green: #1f7a3d;
+  --sid-green-dark: #15592c;
+  --sid-green-soft: #eaf5ed;
+  --sid-text: #21302a;
+  --sid-muted: #64736b;
+  --sid-border: #e2e9e4;
+  --sid-page: #f6f8f7;
+  --sid-danger: #a8372a;
+  min-height: 100%;
+  width: 100%;
+  padding: 28px 28px 36px;
+  background: var(--sid-page);
+  color: var(--sid-text);
+  font-family: "Segoe UI", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.scms-sid *,
+.scms-sid *::before,
+.scms-sid *::after { box-sizing: border-box; }
+
+.scms-sid button,
+.scms-sid input,
+.scms-sid select,
+.scms-sid textarea { font: inherit; }
+
+.scms-sid button { cursor: pointer; }
+.scms-sid button:disabled { cursor: not-allowed; opacity: 0.48; }
+.scms-sid button:focus-visible,
+.scms-sid input:focus-visible,
+.scms-sid select:focus-visible,
+.scms-sid textarea:focus-visible,
+.scms-sid .sid-senior-option:focus-within {
+  outline: 3px solid #7db78e;
+  outline-offset: 3px;
+}
+.scms-sid h2[tabindex="-1"]:focus { outline: none; }
+
+.scms-sid .sid-page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 25px; }
+.scms-sid .sid-eyebrow { margin: 0 0 5px; color: var(--sid-green); font-size: 12px; font-weight: 650; letter-spacing: 0.055em; text-transform: uppercase; }
+.scms-sid h1 { margin: 0; color: #183d29; font-size: clamp(24px, 2.4vw, 29px); font-weight: 700; line-height: 1.25; letter-spacing: -0.65px; }
+.scms-sid .sid-subtitle { max-width: 640px; margin: 8px 0 0; color: var(--sid-muted); }
+
+.scms-sid .sid-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 10px 17px;
+  border: 1px solid transparent; border-radius: 9px;
+  font-size: 14px; font-weight: 600; line-height: 1.35; white-space: nowrap;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.scms-sid .sid-button svg { flex-shrink: 0; width: 17px; height: 17px; }
+.scms-sid .sid-button--primary { background: var(--sid-green); color: #fff; }
+.scms-sid .sid-button--primary:hover:not(:disabled) { background: var(--sid-green-dark); }
+.scms-sid .sid-button--secondary { background: #fff; border-color: #ccd7cf; color: #34483b; }
+.scms-sid .sid-button--secondary:hover:not(:disabled) { background: #f2f7f3; border-color: #91b79e; }
+.scms-sid .sid-button--danger { background: #fff; border-color: #e7c4bf; color: var(--sid-danger); }
+.scms-sid .sid-button--danger:hover:not(:disabled) { background: #fff3f1; border-color: #d99b92; }
+.scms-sid .sid-button--danger-solid { background: var(--sid-danger); color: #fff; }
+.scms-sid .sid-button--danger-solid:hover:not(:disabled) { background: #8c2b20; }
+
+/* Summary */
+.scms-sid .sid-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.scms-sid .sid-stat { display: flex; align-items: center; gap: 15px; min-width: 0; padding: 20px; border: 1px solid var(--sid-border); border-radius: 12px; background: #fff; }
+.scms-sid .sid-stat-icon { display: grid; flex: 0 0 45px; width: 45px; height: 45px; place-items: center; border-radius: 12px; font-size: 21px; }
+.scms-sid .sid-stat-icon--active { color: var(--sid-green); background: var(--sid-green-soft); }
+.scms-sid .sid-stat-icon--pending { color: #94620d; background: #fff4db; }
+.scms-sid .sid-stat-icon--replace { color: #2863a0; background: #eaf2fc; }
+.scms-sid .sid-stat-icon--inactive { color: #5f6863; background: #f0f2f1; }
+.scms-sid .sid-stat-label { display: block; color: var(--sid-muted); font-size: 13px; }
+.scms-sid .sid-stat-value { display: block; margin-top: 2px; font-size: 28px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+.scms-sid .sid-callout { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 12px 16px; border: 1px solid #cfe2d5; border-radius: 10px; background: #f3faf5; color: #285a37; font-size: 13px; }
+.scms-sid .sid-callout > svg { flex-shrink: 0; width: 18px; height: 18px; }
+.scms-sid .sid-callout > span { flex: 1; min-width: 180px; }
+
+/* List and filters */
+.scms-sid .sid-panel { border: 1px solid var(--sid-border); border-radius: 14px; background: #fff; }
+.scms-sid .sid-panel-heading { padding: 22px 24px 18px; }
+.scms-sid .sid-panel-heading h2 { margin: 0; font-size: 17px; font-weight: 650; }
+.scms-sid .sid-panel-heading p { margin: 4px 0 0; color: var(--sid-muted); font-size: 13px; }
+.scms-sid .sid-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 0 24px 22px; }
+.scms-sid .sid-search-group { flex: 1 1 260px; min-width: 0; }
+.scms-sid .sid-toolbar label { display: block; margin-bottom: 6px; color: #526359; font-size: 12px; font-weight: 600; }
+.scms-sid .sid-search-box { position: relative; }
+.scms-sid .sid-search-box > svg { position: absolute; top: 50%; left: 13px; width: 17px; height: 17px; transform: translateY(-50%); color: #738279; pointer-events: none; }
+.scms-sid .sid-search-box input { padding-left: 39px; }
+.scms-sid .sid-filter { flex: 0 1 190px; min-width: 150px; }
+.scms-sid input,
+.scms-sid select,
+.scms-sid textarea {
+  display: block; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 10px 12px;
+  border: 1px solid #cbd6ce; border-radius: 8px; background: #fff; color: var(--sid-text);
+  line-height: 1.45; box-shadow: none; transition: border-color 140ms ease;
+}
+.scms-sid input[type="radio"] { display: inline; width: auto; min-height: 0; margin: 0; accent-color: var(--sid-green); }
+.scms-sid select { padding-right: 25px; cursor: pointer; }
+.scms-sid input::placeholder,
+.scms-sid textarea::placeholder { color: #77827c; opacity: 1; }
+.scms-sid input:hover,
+.scms-sid select:hover,
+.scms-sid textarea:hover { border-color: #9fb4a5; }
+.scms-sid input:focus,
+.scms-sid select:focus,
+.scms-sid textarea:focus { border-color: var(--sid-green); }
+.scms-sid textarea { min-height: 90px; resize: vertical; }
+.scms-sid .sid-text-button { border: 0; padding: 8px 3px; border-radius: 4px; background: transparent; color: var(--sid-green-dark); font-weight: 600; font-size: 13px; }
+.scms-sid .sid-text-button:hover { text-decoration: underline; }
+.scms-sid .sid-reset { min-height: 44px; white-space: nowrap; }
+
+.scms-sid .sid-table-wrap { overflow-x: auto; }
+.scms-sid .sid-table { width: 100%; border-collapse: collapse; text-align: left; }
+.scms-sid .sid-table th { padding: 13px 15px; border-top: 1px solid var(--sid-border); border-bottom: 1px solid var(--sid-border); background: #f8faf8; color: #596b5f; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.scms-sid .sid-table td { padding: 15px; border-bottom: 1px solid #edf1ee; font-size: 13px; vertical-align: middle; }
+.scms-sid .sid-table th:first-child,
+.scms-sid .sid-table td:first-child { padding-left: 24px; }
+.scms-sid .sid-table th:last-child,
+.scms-sid .sid-table td:last-child { padding-right: 24px; }
+.scms-sid .sid-table tbody tr:last-child td { border-bottom: 0; }
+.scms-sid .sid-table tbody tr:hover { background: #fafcfb; }
+.scms-sid .sid-person { display: flex; align-items: center; gap: 11px; min-width: 190px; }
+.scms-sid .sid-avatar { display: grid; place-items: center; flex: 0 0 39px; width: 39px; height: 39px; border-radius: 50%; background: #edf4ee; color: #366044; font-size: 12px; font-weight: 700; }
+.scms-sid .sid-person strong { display: block; max-width: 245px; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+.scms-sid .sid-person div > span { display: block; margin-top: 3px; color: var(--sid-muted); font-size: 11px; }
+.scms-sid .sid-id-number { font-family: "Cascadia Mono", Consolas, ui-monospace, monospace; font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap; }
+.scms-sid .sid-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.scms-sid .sid-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+.scms-sid .sid-status > span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.scms-sid .sid-status--pending { background: #fff4dc; color: #875b0b; }
+.scms-sid .sid-status--active { background: #eaf5ec; color: #256839; }
+.scms-sid .sid-status--replace { background: #eaf2fd; color: #2b609a; }
+.scms-sid .sid-status--inactive { background: #f0f2f1; color: #5a645f; }
+
+.scms-sid .sid-actions-heading { text-align: right; }
+.scms-sid .sid-row-actions { display: flex; justify-content: flex-end; gap: 5px; }
+.scms-sid .sid-row-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 7px 9px; border: 1px solid #dce5df; border-radius: 7px; background: #fff; color: #3d5645; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.scms-sid .sid-row-button svg { width: 14px; height: 14px; }
+.scms-sid .sid-row-button:hover { border-color: #9bbea5; background: #f0f7f1; color: var(--sid-green-dark); }
+.scms-sid .sid-table-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; min-height: 68px; padding: 14px 24px; border-top: 1px solid var(--sid-border); }
+.scms-sid .sid-table-footer p { margin: 0; color: var(--sid-muted); font-size: 12px; }
+.scms-sid .sid-pagination { display: flex; align-items: center; gap: 12px; }
+.scms-sid .sid-pagination > span { color: #53675b; font-size: 12px; }
+.scms-sid .sid-icon-button { display: inline-grid; flex-shrink: 0; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid var(--sid-border); border-radius: 8px; background: #fff; color: #4f6457; font-size: 18px; }
+.scms-sid .sid-icon-button:hover:not(:disabled) { background: #edf5ef; border-color: #a8c5b0; }
+
+/* Empty states and feedback */
+.scms-sid .sid-empty { display: flex; align-items: center; flex-direction: column; padding: 46px 20px 50px; border-top: 1px solid var(--sid-border); text-align: center; }
+.scms-sid .sid-empty-icon { display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 17px; border-radius: 18px; background: var(--sid-green-soft); color: var(--sid-green); font-size: 27px; }
+.scms-sid .sid-empty h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.scms-sid .sid-empty p { max-width: 340px; margin: 7px 0 21px; color: var(--sid-muted); font-size: 13px; }
+.scms-sid .sid-message { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 11px 14px; border: 1px solid; border-radius: 9px; font-size: 13px; }
+.scms-sid .sid-message > svg { flex-shrink: 0; width: 18px; height: 18px; }
+.scms-sid .sid-message > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.scms-sid .sid-message--success { background: #eff8f1; border-color: #cbe3d1; color: #255c36; }
+.scms-sid .sid-message--error { background: #fff3f1; border-color: #edc9c3; color: #983e31; }
+.scms-sid .sid-message .sid-icon-button { width: 30px; height: 30px; border: 0; background: transparent; }
+.scms-sid .sid-muted { margin: 0; color: var(--sid-muted); font-size: 13px; }
+
+/* Dialogs */
+.scms-sid .sid-dialog {
+  width: min(560px, calc(100% - 32px)); max-width: none; max-height: calc(100dvh - 48px);
+  margin: auto; padding: 0; overflow: hidden;
+  border: 1px solid #e0e8e2; border-radius: 16px; background: #fff; color: var(--sid-text);
+  font: inherit; text-align: left; box-shadow: 0 24px 90px rgb(18 42 27 / 22%);
+}
+.scms-sid .sid-dialog--wide { width: min(700px, calc(100% - 32px)); }
+.scms-sid .sid-dialog::backdrop { background: rgb(19 35 26 / 45%); backdrop-filter: blur(3px); }
+.scms-sid .sid-dialog-frame { display: flex; flex-direction: column; max-height: calc(100dvh - 50px); }
+.scms-sid .sid-dialog-header { display: flex; flex-shrink: 0; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 23px 26px 20px; border-bottom: 1px solid var(--sid-border); }
+.scms-sid .sid-dialog-header h2 { margin: 0; color: #213d2b; font-size: 21px; line-height: 1.35; font-weight: 650; letter-spacing: -0.3px; }
+.scms-sid .sid-dialog-header p { margin: 6px 0 0; color: var(--sid-muted); font-size: 13px; }
+.scms-sid .sid-form { display: flex; flex-direction: column; min-height: 0; }
+.scms-sid .sid-dialog-body { min-height: 0; padding: 24px 26px; overflow-y: auto; overscroll-behavior: contain; }
+.scms-sid .sid-dialog-lead { margin: 0 0 18px; color: #4e6355; font-size: 13px; }
+.scms-sid .sid-dialog-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: 10px; padding: 17px 26px; border-top: 1px solid var(--sid-border); background: #fbfcfb; }
+.scms-sid .sid-footer-spacer { flex: 1; }
+.scms-sid .sid-fieldset { min-width: 0; margin: 0 0 25px; padding: 0; border: 0; }
+.scms-sid .sid-fieldset:last-child { margin-bottom: 0; }
+.scms-sid .sid-fieldset legend { width: 100%; margin-bottom: 16px; padding: 0 0 10px; border-bottom: 1px solid #edf1ee; color: #304d3a; font-size: 14px; font-weight: 650; }
+.scms-sid .sid-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 18px 20px; }
+.scms-sid .sid-field { display: flex; flex-direction: column; min-width: 0; gap: 7px; }
+.scms-sid .sid-field--wide { grid-column: 1 / -1; }
+.scms-sid .sid-field label { color: #374d3f; font-size: 13px; font-weight: 600; }
+.scms-sid .sid-required { color: #b74a36; }
+.scms-sid .sid-optional { color: var(--sid-muted); font-size: 11px; font-weight: 400; }
+.scms-sid .sid-field-hint { color: var(--sid-muted); font-size: 11px; }
+.scms-sid .sid-field-error { color: #aa3529; font-size: 12px; }
+.scms-sid [aria-invalid="true"] { border-color: #c96153; background: #fffafa; }
+
+/* Senior picker in the Issue ID dialog */
+.scms-sid .sid-senior-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; margin-top: 12px; padding: 2px; overflow-y: auto; }
+.scms-sid .sid-senior-option { display: flex; align-items: center; gap: 11px; padding: 9px 12px; border: 1px solid var(--sid-border); border-radius: 9px; cursor: pointer; }
+.scms-sid .sid-senior-option:hover { border-color: #a8c5b0; background: #fafcfb; }
+.scms-sid .sid-senior-option.selected { border-color: var(--sid-green); background: var(--sid-green-soft); }
+.scms-sid .sid-senior-option .sid-avatar { flex-basis: 34px; width: 34px; height: 34px; font-size: 11px; }
+.scms-sid .sid-senior-option-text { display: flex; flex-direction: column; min-width: 0; }
+.scms-sid .sid-senior-option-text strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.scms-sid .sid-senior-option-text small { color: var(--sid-muted); font-size: 12px; }
+
+/* OSCA ID card: sized in container units so it keeps the real card's
+   proportions (85.6 × 54 mm) at any width, on screen and in print. */
+.scms-sid .sid-card {
+  position: relative;
+  container-type: inline-size;
+  width: 100%;
+  max-width: 540px;
+  aspect-ratio: 85.6 / 54;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid #CDD5D0;
+  border-radius: 2.2cqw;
+  background: #FBFCFD;
+  color: #1B1F23;
+  font-family: Arial, "Helvetica Neue", sans-serif;
+  line-height: 1.15;
+  box-shadow: 0 10px 30px rgb(16 35 26 / 18%);
+}
+.scms-sid .sid-card-watermark { position: absolute; top: 52%; left: 46%; width: 30cqw; transform: translate(-50%, -50%); opacity: 0.08; pointer-events: none; }
+.scms-sid .sid-card-head { position: absolute; top: 3.5cqw; left: 4cqw; right: 30cqw; display: flex; align-items: center; gap: 2.5cqw; }
+.scms-sid .sid-card-seal { flex: none; width: 15cqw; height: 15cqw; object-fit: contain; }
+.scms-sid .sid-card-office { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.scms-sid .sid-card-office span { color: #222; font-size: 2.5cqw; font-weight: 700; }
+.scms-sid .sid-card-osca { color: #2A7BC0; font-size: 2.75cqw; }
+.scms-sid .sid-card-lgu { color: #C8323B; font-size: 3.1cqw; font-weight: 800; letter-spacing: 0.02em; }
+.scms-sid .sid-card-photo {
+  position: absolute;
+  top: 3.5cqw;
+  right: 3.5cqw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6cqw;
+  width: 24cqw;
+  height: 27cqw;
+  border: 1px solid #9AA6A0;
+  background: #EEF1F2;
+  color: #8A959C;
+}
+.scms-sid .sid-card-photo span { font-size: 7cqw; font-weight: 700; }
+.scms-sid .sid-card-photo small { font-size: 2.2cqw; text-transform: uppercase; letter-spacing: 0.08em; }
+.scms-sid .sid-card-lines { position: absolute; top: 24cqw; left: 5cqw; right: 4cqw; display: flex; flex-direction: column; gap: 1.2cqw; margin: 0; }
+.scms-sid .sid-card-line { display: flex; align-items: baseline; gap: 1.6cqw; min-width: 0; }
+.scms-sid .sid-card-line--name { margin-right: 27cqw; }
+.scms-sid .sid-card-line dt { flex: none; font-size: 3cqw; font-weight: 700; }
+.scms-sid .sid-card-line dd,
+.scms-sid .sid-card-facts dd,
+.scms-sid .sid-card-sign strong { font-family: Georgia, "Times New Roman", serif; font-weight: 700; }
+.scms-sid .sid-card-line dd { min-width: 0; margin: 0; overflow: hidden; font-size: 3.9cqw; text-overflow: ellipsis; white-space: nowrap; }
+/* Long names and addresses get a smaller size so they fit on one line. */
+.scms-sid .sid-card-line dd.is-long { font-size: 3.2cqw; }
+.scms-sid .sid-card-line dd.is-very-long { font-size: 2.7cqw; }
+.scms-sid .sid-card-facts { position: absolute; top: 35.5cqw; left: 3cqw; right: 3cqw; display: grid; grid-template-columns: 1.4fr 0.8fr 0.8fr 1.4fr; margin: 0; text-align: center; }
+.scms-sid .sid-card-facts div { display: flex; flex-direction: column-reverse; align-items: center; }
+.scms-sid .sid-card-facts dd { margin: 0; font-size: 4.4cqw; }
+.scms-sid .sid-card-facts dt { font-size: 2.6cqw; }
+.scms-sid .sid-card-bottom { position: absolute; top: 48cqw; left: 5cqw; right: 4cqw; display: flex; align-items: flex-end; justify-content: space-between; gap: 3cqw; }
+.scms-sid .sid-card-idno { color: #C8323B; font-size: 3.4cqw; font-weight: 800; white-space: nowrap; }
+.scms-sid .sid-card-sign { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.scms-sid .sid-card-sign strong { max-width: 100%; overflow: hidden; border-bottom: 0.25cqw solid #1B1F23; font-size: 3.2cqw; text-overflow: ellipsis; white-space: nowrap; }
+.scms-sid .sid-card-sign strong.is-long { font-size: 2.6cqw; }
+.scms-sid .sid-card-sign span { margin-top: 0.5cqw; font-size: 2.3cqw; }
+.scms-sid .sid-card-foot { position: absolute; left: 3cqw; right: 3cqw; bottom: 2.2cqw; margin: 0; color: #2A7BC0; font-size: 2.05cqw; font-weight: 800; text-align: center; text-transform: uppercase; white-space: nowrap; }
+.scms-sid .sid-card-stamp {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  padding: 0.8cqw 3cqw;
+  border: 0.6cqw solid #C8323B;
+  border-radius: 1cqw;
+  background: rgb(255 255 255 / 70%);
+  color: #C8323B;
+  font-size: 5cqw;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: translate(-50%, -50%) rotate(-14deg);
+}
+
+/* Print only the card at real ID size (Print card button adds .sid-printing). */
+@media print {
+  body.sid-printing * { visibility: hidden; }
+  body.sid-printing .sid-card,
+  body.sid-printing .sid-card * { visibility: visible; }
+  body.sid-printing dialog::backdrop { background: none; }
+  body.sid-printing .scms-sid .sid-card {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85.6mm;
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+.scms-sid .sid-status-note { margin: 12px 0 0; color: var(--sid-muted); font-size: 12px; text-align: center; }
+
+.scms-sid .sid-section-title { margin: 24px 0 12px; color: #385342; font-size: 14px; font-weight: 650; }
+.scms-sid .sid-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 0; }
+.scms-sid .sid-detail dt { margin: 0 0 4px; color: var(--sid-muted); font-size: 12px; }
+.scms-sid .sid-detail dd { margin: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.scms-sid .sid-remarks { margin: 0; padding: 13px 15px; border: 1px solid var(--sid-border); border-radius: 9px; background: #f9fbf9; color: #4e6355; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ID history timeline */
+.scms-sid .sid-history { margin: 0; padding: 0 0 0 18px; border-left: 2px solid var(--sid-border); list-style: none; }
+.scms-sid .sid-history li { position: relative; padding: 0 0 18px 4px; }
+.scms-sid .sid-history li:last-child { padding-bottom: 0; }
+.scms-sid .sid-history li::before { content: ""; position: absolute; top: 6px; left: -25px; width: 10px; height: 10px; border: 2px solid #fff; border-radius: 50%; background: var(--sid-green); box-shadow: 0 0 0 1px var(--sid-green); }
+.scms-sid .sid-history-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.scms-sid .sid-history-head strong { font-size: 14px; }
+.scms-sid .sid-history-head .sid-id-number { color: var(--sid-muted); font-size: 11.5px; }
+.scms-sid .sid-history-meta { margin: 2px 0 0; color: var(--sid-muted); font-size: 12px; }
+.scms-sid .sid-history-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 5px 0 0; color: #3d5645; font-size: 12px; }
+.scms-sid .sid-history-details { margin: 5px 0 0; color: #4e6355; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.scms-sid .sid-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+@media (max-width: 1100px) {
+  .scms-sid { padding: 24px 20px 32px; }
+  .scms-sid .sid-stats { gap: 12px; }
+  .scms-sid .sid-stat { gap: 10px; padding: 16px; }
+  .scms-sid .sid-table { min-width: 860px; }
+}
+@media (max-width: 800px) {
+  .scms-sid .sid-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scms-sid .sid-page-header { align-items: flex-start; }
+  .scms-sid .sid-search-group { flex-basis: 100%; }
+  .scms-sid .sid-filter { flex: 1; }
+}
+
+/* On phones each table row becomes a card. */
+@media (max-width: 600px) {
+  .scms-sid { padding: 20px 14px 28px; }
+  .scms-sid .sid-page-header { flex-direction: column; gap: 16px; margin-bottom: 20px; }
+  .scms-sid .sid-page-header > .sid-button { width: 100%; }
+  .scms-sid .sid-stats { gap: 10px; }
+  .scms-sid .sid-stat { padding: 14px 12px; }
+  .scms-sid .sid-stat-icon { flex-basis: 35px; width: 35px; height: 35px; border-radius: 9px; font-size: 18px; }
+  .scms-sid .sid-stat-label { font-size: 11px; }
+  .scms-sid .sid-stat-value { font-size: 25px; }
+  .scms-sid .sid-panel-heading { padding: 19px 16px 17px; }
+  .scms-sid .sid-toolbar { padding: 0 16px 18px; }
+  .scms-sid input,
+  .scms-sid select,
+  .scms-sid textarea { font-size: 16px; }
+  .scms-sid .sid-table-wrap { overflow: visible; }
+  .scms-sid .sid-table,
+  .scms-sid .sid-table tbody { display: block; width: 100%; min-width: 0; }
+  .scms-sid .sid-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .scms-sid .sid-table tbody tr { display: block; margin: 0 14px 14px; padding: 15px; border: 1px solid var(--sid-border); border-radius: 10px; }
+  .scms-sid .sid-table td,
+  .scms-sid .sid-table td:first-child,
+  .scms-sid .sid-table td:last-child { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 7px 0; border: 0; }
+  .scms-sid .sid-table td[data-label]::before { content: attr(data-label); flex: 0 0 80px; color: var(--sid-muted); font-size: 12px; }
+  .scms-sid .sid-table td.sid-person-cell { padding: 0 0 12px; margin-bottom: 7px; border-bottom: 1px solid #edf1ee; }
+  .scms-sid .sid-person { min-width: 0; }
+  .scms-sid .sid-table td.sid-actions-cell { padding: 12px 0 0; margin-top: 7px; border-top: 1px solid #edf1ee; }
+  .scms-sid .sid-row-actions { width: 100%; gap: 10px; }
+  .scms-sid .sid-row-button { flex: 1; min-height: 42px; font-size: 13px; }
+  .scms-sid .sid-table-footer { padding: 14px 16px; }
+  .scms-sid .sid-dialog,
+  .scms-sid .sid-dialog--wide { width: calc(100% - 20px); max-height: calc(100dvh - 24px); border-radius: 12px; }
+  .scms-sid .sid-dialog-frame { max-height: calc(100dvh - 26px); }
+  .scms-sid .sid-dialog-header { padding: 19px 18px 17px; }
+  .scms-sid .sid-dialog-body { padding: 20px 18px; }
+  .scms-sid .sid-dialog-footer { padding: 15px 18px; }
+  .scms-sid .sid-dialog-footer .sid-button { flex: 1; min-width: 0; }
+  .scms-sid .sid-footer-spacer { display: none; }
+  .scms-sid .sid-form-grid,
+  .scms-sid .sid-details { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scms-sid *, .scms-sid *::before, .scms-sid *::after { transition: none; }
+}
