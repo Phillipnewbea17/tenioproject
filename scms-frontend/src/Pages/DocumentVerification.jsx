@@ -22,6 +22,7 @@ import {
   FiX,
   FiXCircle,
 } from "react-icons/fi";
+import ApplicationPhotos from "../components/ApplicationPhotos";
 import "./DocumentVerification.css";
 
 /* -------------------------------------------------------------------------- */
@@ -189,6 +190,9 @@ function normalizeApplication(row) {
   return {
     id: row.id,
     appId: row.application_id || "",
+    // "App" = submitted by the senior through the mobile app.
+    source: row.source || "Walk-in",
+    photoCount: Number(row.documents_count) || 0,
     name: row.name || "Unnamed applicant",
     submittedAt: row.submitted_at,
     status: row.status || "Pending",
@@ -422,20 +426,21 @@ function ConfirmDialog({
 
 function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
   const [tab, setTab] = useState("Documents");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(applicant.notes || "");
   const [noteError, setNoteError] = useState("");
   const [saving, setSaving] = useState("");
   const noteRef = useRef(null);
 
   // Reset the drawer only when a different applicant is opened, so saving
   // one applicant never wipes what the reviewer is typing.
-  useEffect(() => {
+  const [openedId, setOpenedId] = useState(applicant.id);
+  if (openedId !== applicant.id) {
+    setOpenedId(applicant.id);
     setTab("Documents");
     setNotes(applicant.notes || "");
     setNoteError("");
     setSaving("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicant.id]);
+  }
 
   useEffect(() => {
     const handleKey = (event) => {
@@ -543,6 +548,10 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
               </p>
             ))}
           </div>
+        )}
+
+        {tab === "Documents" && applicant.photoCount > 0 && (
+          <ApplicationPhotos applicationId={applicant.id} />
         )}
 
         {tab === "Documents" && (
@@ -740,6 +749,12 @@ export default function DocumentVerification() {
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
+  const reload = () => {
+    setLoading(true);
+    setLoadError("");
+    setReloadKey((key) => key + 1);
+  };
+
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
   const [docFilter, setDocFilter] = useState("All");
@@ -767,9 +782,6 @@ export default function DocumentVerification() {
   useEffect(() => {
     let cancelled = false;
 
-    setLoading(true);
-    setLoadError("");
-
     getApplications()
       .then((data) => {
         if (cancelled) return;
@@ -790,9 +802,13 @@ export default function DocumentVerification() {
     };
   }, [reloadKey]);
 
-  useEffect(() => {
+  // Go back to page 1 whenever the filters change.
+  const filterKey = JSON.stringify([search, activeTab, docFilter, sortBy]);
+  const [pageFilterKey, setPageFilterKey] = useState(filterKey);
+  if (pageFilterKey !== filterKey) {
+    setPageFilterKey(filterKey);
     setCurrentPage(1);
-  }, [search, activeTab, docFilter, sortBy]);
+  }
 
   /* ------------------------------ Derived data ----------------------------- */
 
@@ -1040,10 +1056,8 @@ export default function DocumentVerification() {
       {/* Heading */}
       <header className="dv-heading">
         <div className="dv-title-row">
-          <span className="dv-title-icon">
-            <FiFileText />
-          </span>
           <div>
+            <span className="dv-eyebrow">People and records</span>
             <h1>Document Verification</h1>
             <p>Check the documents seniors submit, then approve or reject them.</p>
           </div>
@@ -1150,7 +1164,7 @@ export default function DocumentVerification() {
             <button
               type="button"
               className="dv-btn dv-btn-secondary"
-              onClick={() => setReloadKey((key) => key + 1)}
+              onClick={reload}
             >
               <FiRefreshCw />
               Try again
@@ -1257,7 +1271,10 @@ export default function DocumentVerification() {
                             </span>
                             <span className="dv-applicant-text">
                               <strong>{applicant.name}</strong>
-                              <small>{applicant.appId || "No ID"}</small>
+                              <small>
+                                {applicant.appId || "No ID"}
+                                {applicant.source === "App" && <span className="dv-source-app">App</span>}
+                              </small>
                             </span>
                           </button>
                         </td>

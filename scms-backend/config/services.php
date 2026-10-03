@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    // Text messages for the senior app sign-in codes (see App\Support\Sms).
+    'sms' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+        'semaphore_key' => env('SEMAPHORE_API_KEY'),
+        'sender' => env('SMS_SENDER_NAME'),
+    ],
+
 ];

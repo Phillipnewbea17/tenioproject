@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "../services/api";
 import "./Login.css";
@@ -36,12 +36,20 @@ export default function Login({ onLoginSuccess }) {
       password
     );
 
+    // The role only decides which buttons are shown; the server still checks
+    // every permission.
+    const role = data.user?.role || "User";
+
     if (remember) {
   localStorage.setItem("scms_token", data.token);
+  localStorage.setItem("scms_role", role);
   sessionStorage.removeItem("scms_token");
+  sessionStorage.removeItem("scms_role");
 } else {
   sessionStorage.setItem("scms_token", data.token);
+  sessionStorage.setItem("scms_role", role);
   localStorage.removeItem("scms_token");
+  localStorage.removeItem("scms_role");
 }
 
     onLoginSuccess(data.user.name, remember);
