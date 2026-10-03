@@ -1,21 +1,22 @@
-import React, { useState, useRef, useEffect } from "react";
-import { FiMenu, FiChevronDown, FiUser, FiLogOut, FiSettings } from "react-icons/fi";
+import { useState, useRef, useEffect } from "react";
+import { TbChevronDown, TbMenu2, TbSettings } from "react-icons/tb";
 import "./Header.css";
 
 /**
- * Top header bar.
+ * Top bar ("style A" mockup): welcome text on the left, account menu on the
+ * right. The menu button collapses the sidebar (desktop) or opens it (phones).
+ * Logout lives at the bottom of the sidebar.
  *
  * Props:
- * - adminName: string shown in "Welcome, {adminName}!" and the profile chip
- * - onMenuClick: called when the hamburger icon is clicked (use to open the
- *   mobile sidebar drawer)
- * - onLogout: called when "Logout" is picked from the profile dropdown
- * - avatarUrl: optional image url for the admin avatar; falls back to an icon
+ * - adminName: shown in "Welcome, {adminName}!" and the account button
+ * - onMenuClick: toggles the sidebar
+ * - sidebarExpanded: whether the sidebar is currently showing its labels
+ * - avatarUrl: optional image; falls back to the name's first letter
  */
 export default function Header({
   adminName = "Admin",
   onMenuClick,
-  onLogout,
+  sidebarExpanded = true,
   avatarUrl,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -27,9 +28,19 @@ export default function Header({
         setMenuOpen(false);
       }
     }
+    function handleKey(event) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, []);
+
+  const initial = (adminName.trim()[0] || "A").toUpperCase();
 
   return (
     <header className="app-header">
@@ -38,9 +49,10 @@ export default function Header({
           type="button"
           className="app-header-menu-btn"
           onClick={onMenuClick}
-          aria-label="Toggle menu"
+          aria-label={sidebarExpanded ? "Collapse menu" : "Expand menu"}
+          aria-expanded={sidebarExpanded}
         >
-          <FiMenu />
+          <TbMenu2 strokeWidth={1.8} />
         </button>
         <span className="app-header-welcome">Welcome, {adminName}!</span>
       </div>
@@ -52,28 +64,25 @@ export default function Header({
           onClick={() => setMenuOpen((open) => !open)}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
-          aria-label={`Open account menu for ${adminName}`}
+          aria-label={`Account menu for ${adminName}`}
         >
-          <span className="app-header-avatar">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={adminName} />
-            ) : (
-              <FiUser />
-            )}
+          <span className="app-header-avatar" aria-hidden="true">
+            {avatarUrl ? <img src={avatarUrl} alt="" /> : initial}
           </span>
           <span className="app-header-admin-name">{adminName}</span>
-          <FiChevronDown
+          <TbChevronDown
             className={`app-header-chevron${menuOpen ? " open" : ""}`}
+            strokeWidth={1.8}
+            aria-hidden="true"
           />
         </button>
 
         {menuOpen && (
           <div className="app-header-dropdown" role="menu">
             <button type="button" className="app-header-dropdown-item" role="menuitem">
-              <FiSettings />
+              <TbSettings strokeWidth={1.8} aria-hidden="true" />
               <span>Settings</span>
             </button>
-           
           </div>
         )}
       </div>

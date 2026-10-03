@@ -6,9 +6,9 @@
    ========================================================================== */
 
 .records-page {
-  --rp-primary: #15803d;
-  --rp-primary-hover: #166534;
-  --rp-primary-soft: #e8f5ec;
+  --rp-primary: var(--scms-primary);
+  --rp-primary-hover: var(--scms-primary-hover);
+  --rp-primary-soft: var(--scms-primary-soft);
   --rp-danger: #b91c1c;
   --rp-danger-hover: #991b1b;
   --rp-danger-soft: #fdecec;
@@ -17,14 +17,14 @@
   --rp-info: #1d5fb4;
   --rp-info-soft: #e6f0fb;
 
-  --rp-text: #1a2321;
-  --rp-text-muted: #5b6764;
-  --rp-text-faint: #8a9491;
-  --rp-border: #e3e8e6;
-  --rp-border-strong: #cfd7d4;
-  --rp-surface: #ffffff;
-  --rp-surface-alt: #f6f8f7;
-  --rp-focus: rgba(21, 128, 61, 0.35);
+  --rp-text: var(--scms-ink);
+  --rp-text-muted: var(--scms-muted);
+  --rp-text-faint: #6E7C74;
+  --rp-border: var(--scms-border);
+  --rp-border-strong: var(--scms-input-border);
+  --rp-surface: var(--scms-surface);
+  --rp-surface-alt: var(--scms-page);
+  --rp-focus: rgba(20, 83, 45, 0.32);
 
   --rp-radius: 10px;
   --rp-radius-sm: 8px;
@@ -996,12 +996,21 @@
 
 .rp-drawer-body {
   flex: 1;
+  /* Without min-height: 0 the body grows to fit its content and never scrolls. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--rp-surface-alt);
+}
+
+/* Keep each section at full height so the body scrolls instead of
+   squeezing (and clipping) the sections. */
+.rp-drawer-body > * {
+  flex-shrink: 0;
 }
 
 .rp-drawer-footer {
@@ -1189,11 +1198,18 @@
 }
 
 .rp-modal-body {
+  /* Same fix as .rp-drawer-body: let the form scroll on short screens. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
   padding: 22px 24px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rp-modal-body > * {
+  flex-shrink: 0;
 }
 
 .rp-modal-note {
@@ -1545,5 +1561,223 @@
   .rp-tab,
   .rp-page-btn {
     transition: none;
+  }
+}
+/* style A fonts (see index.css) */
+.records-page {
+  font-family: var(--scms-font-body);
+}
+
+.records-page h1,
+.records-page h2 {
+  font-family: var(--scms-font-display);
+  letter-spacing: -0.015em;
+}
+
+/* --------------------------------------------------------------------------
+   Record drawer and modals, "style A" proportions (fonts/colors via tokens)
+   -------------------------------------------------------------------------- */
+.rp-drawer {
+  width: 520px;
+}
+
+.rp-drawer-header {
+  padding: 24px;
+}
+
+.rp-drawer-heading h2,
+.rp-modal-header h2 {
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.rp-drawer-body {
+  gap: 20px;
+  padding: 24px;
+}
+
+.rp-info {
+  border-radius: 14px;
+}
+
+.rp-info h3 {
+  padding: 14px 18px;
+  background: var(--rp-surface-alt);
+  font-family: var(--scms-font-display);
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+.rp-info-row {
+  padding: 12px 18px;
+  font-size: 15px;
+}
+
+.rp-drawer-footer {
+  padding: 16px 24px;
+  background: var(--rp-surface-alt);
+}
+
+.rp-drawer-footer .rp-btn,
+.rp-modal-actions .rp-btn {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+/* style A page layout (matches Medical, Dashboard and the other pages) */
+.records-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1180px;
+  min-height: 100%;
+  padding: 40px;
+  gap: 32px;
+  font-size: 15px;
+}
+
+.records-page .rp-heading {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+}
+
+.records-page .rp-title-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.records-page .rp-eyebrow {
+  color: var(--scms-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.records-page .rp-title-row h1 {
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.records-page .rp-title-row p {
+  margin-top: 4px;
+  font-size: 17px;
+}
+
+/* Stats: cells joined by 1px border-colored gaps, large numbers. */
+.records-page .rp-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 16px;
+  background: var(--scms-border);
+}
+
+.records-page .rp-stat {
+  flex: 1 1 200px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "icon label" "value value" "note note";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 6px;
+  margin: 0;
+  padding: 22px 24px;
+  border: 0;
+  border-radius: 0;
+  background: var(--scms-surface);
+  text-align: left;
+}
+
+.records-page .rp-stat:hover {
+  background: #FAFCFA;
+}
+
+.records-page .rp-stat.active {
+  background: #F1F8F3;
+  box-shadow: inset 0 -3px 0 var(--scms-primary);
+}
+
+.records-page .rp-stat-text {
+  display: contents;
+}
+
+.records-page .rp-stat-icon {
+  grid-area: icon;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--scms-muted);
+  font-size: 20px;
+}
+
+.records-page .rp-stat-text span {
+  grid-area: label;
+  color: var(--scms-muted);
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.records-page .rp-stat-text strong {
+  grid-area: value;
+  font-family: var(--scms-font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.records-page .rp-stat-text small {
+  grid-area: note;
+  color: var(--scms-muted);
+  font-size: 13px;
+}
+
+.records-page .rp-panel {
+  border-radius: 16px;
+}
+
+.records-page .rp-btn {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+@media (max-width: 1100px) {
+  .records-page {
+    padding: 32px 24px;
+    gap: 28px;
+  }
+
+  .records-page .rp-title-row h1 {
+    font-size: 36px;
+  }
+}
+
+@media (max-width: 640px) {
+  .records-page {
+    padding: 24px 16px 32px;
+    gap: 24px;
+  }
+
+  .records-page .rp-title-row h1 {
+    font-size: 32px;
+  }
+
+  .records-page .rp-stat {
+    flex-basis: calc(50% - 1px);
+    padding: 16px;
+  }
+
+  .records-page .rp-stat-text strong {
+    font-size: 34px;
   }
 }

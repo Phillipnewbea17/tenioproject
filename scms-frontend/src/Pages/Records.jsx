@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import {
   getSeniorCitizens,
   createSeniorCitizen,
-  deleteSeniorCitizen,
   updateSeniorCitizen,
 } from "../services/api";
 import {
@@ -22,11 +21,12 @@ import {
   FiRefreshCw,
   FiRotateCcw,
   FiSearch,
-  FiTrash2,
   FiUserCheck,
   FiUsers,
   FiX,
 } from "react-icons/fi";
+import SeniorHelpHistory from "../components/SeniorHelpHistory";
+import SeniorIdStatus from "../components/SeniorIdStatus";
 import "./Records.css";
 
 /* -------------------------------------------------------------------------- */
@@ -51,6 +51,9 @@ const PENDING_DAYS = 7;
 const PAGE_SIZE = 8;
 const SKELETON_ROWS = [0, 1, 2, 3, 4];
 const TOAST_DURATION = 4500;
+
+// Toast ids only need to be unique while the page is open.
+let lastToastId = 0;
 const DAY = 24 * 60 * 60 * 1000;
 
 const TABS = ["All", "Active", "Pending", "Needs attention", "Archived"];
@@ -80,7 +83,6 @@ const EMPTY_FORM = {
   maintenance: "",
   lastCheckup: "",
   civilStatus: "",
-  oscaId: "Active",
   emergencyContact: "",
   relationship: "",
 };
@@ -98,7 +100,6 @@ const SERVER_FIELD_MAP = {
   maintenance: "maintenance",
   last_checkup: "lastCheckup",
   civil_status: "civilStatus",
-  osca_id: "oscaId",
   emergency_contact: "emergencyContact",
   relationship: "relationship",
 };
@@ -229,7 +230,9 @@ function buildRecord(row) {
     civilStatus: row.civil_status || "",
     emergencyContact: row.emergency_contact || "",
     relationship: row.relationship || "",
-    oscaId: row.osca_id || "Active",
+    // OSCA ID = the issued ID from OSCA IDs (null until one is issued).
+    oscaId: row.osca?.id_number || "",
+    oscaStatus: row.osca?.status || "",
   };
 }
 
@@ -245,7 +248,6 @@ function recordToForm(record) {
     maintenance: record.maintenance,
     lastCheckup: record.lastCheckup,
     civilStatus: record.civilStatus,
-    oscaId: record.oscaId || "Active",
     emergencyContact: record.emergencyContact,
     relationship: record.relationship,
   };
@@ -268,7 +270,6 @@ function formToPayload(form) {
     civil_status: form.civilStatus || null,
     emergency_contact: form.emergencyContact.trim() || null,
     relationship: form.relationship.trim() || null,
-    osca_id: form.oscaId || "Active",
   };
 }
 
@@ -389,7 +390,8 @@ function csvCell(value) {
 
 function downloadCSV(filename, rows, flagsById) {
   const header = [
-    "Senior ID",
+    "Record No.",
+    "OSCA ID",
     "Name",
     "Age",
     "Birth date",
@@ -403,6 +405,7 @@ function downloadCSV(filename, rows, flagsById) {
 
   const body = rows.map((record) => [
     record.seniorId,
+    record.oscaId ? `${record.oscaId} (${record.oscaStatus})` : "",
     record.name,
     record.age,
     record.birthDate,
@@ -949,16 +952,6 @@ function SeniorFormModal({ record, records, onClose, onSave }) {
                 </select>
               </Field>
 
-              <Field label="OSCA ID status" htmlFor="rp-oscaId">
-                <select
-                  id="rp-oscaId"
-                  value={form.oscaId}
-                  onChange={update("oscaId")}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </Field>
             </div>
 
             <div className="rp-field-row">
@@ -1007,7 +1000,7 @@ function SeniorFormModal({ record, records, onClose, onSave }) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Archive + delete dialogs                                                   */
+/* Archive dialog (records are archived, never deleted)                     */
 /* -------------------------------------------------------------------------- */
 
 const ARCHIVE_REASONS = [
@@ -1083,44 +1076,6 @@ function ArchiveDialog({ record, busy, onConfirm, onClose }) {
   );
 }
 
-function DeleteDialog({ record, busy, onConfirm, onClose }) {
-  return (
-    <ModalShell
-      title="Delete this record?"
-      titleId="rp-delete-title"
-      onClose={onClose}
-      busy={busy}
-    >
-      <div className="rp-modal-body">
-        <p className="rp-modal-note">
-          <strong>{record.name}</strong> ({record.seniorId}) will be removed
-          permanently. This cannot be undone. If the senior has moved away or
-          passed away, archive the record instead so the history is kept.
-        </p>
-      </div>
-
-      <div className="rp-modal-actions">
-        <button
-          type="button"
-          className="rp-btn rp-btn-secondary"
-          onClick={onClose}
-          disabled={busy}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="rp-btn rp-btn-danger"
-          onClick={onConfirm}
-          disabled={busy}
-        >
-          {busy ? "Deleting..." : "Delete record"}
-        </button>
-      </div>
-    </ModalShell>
-  );
-}
-
 /* -------------------------------------------------------------------------- */
 /* Record drawer                                                              */
 /* -------------------------------------------------------------------------- */
@@ -1162,7 +1117,9 @@ function RecordDrawer({ record, flags, onClose, onEdit, onArchive, onRestore }) 
             </span>
             <div className="rp-drawer-heading">
               <h2 id="rp-drawer-title">{record.name}</h2>
-              <span className="rp-muted">{record.seniorId}</span>
+              <span className="rp-muted">
+                {record.oscaId ? `OSCA ID ${record.oscaId}` : "No OSCA ID yet"} · Record No. {record.seniorId}
+              </span>
               <span className="rp-muted">
                 Updated {updated.date}
                 {updated.time && ` at ${updated.time}`}
@@ -1225,15 +1182,11 @@ function RecordDrawer({ record, flags, onClose, onEdit, onArchive, onRestore }) 
             <InfoRow label="Civil status">{record.civilStatus}</InfoRow>
             <InfoRow label="Emergency contact">{record.emergencyContact}</InfoRow>
             <InfoRow label="Relationship">{record.relationship}</InfoRow>
-            <div className="rp-info-row">
-              <span>OSCA ID</span>
-              <span
-                className={`rp-pill ${record.oscaId === "Active" ? "green" : "gray"}`}
-              >
-                {record.oscaId}
-              </span>
-            </div>
           </section>
+
+          <SeniorIdStatus seniorCitizenId={record.id} />
+
+          <SeniorHelpHistory seniorCitizenId={record.id} />
         </div>
 
         <footer className="rp-drawer-footer">
@@ -1276,6 +1229,12 @@ export default function Records() {
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
+  const reload = () => {
+    setLoading(true);
+    setLoadError("");
+    setReloadKey((key) => key + 1);
+  };
+
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
   const [purokFilter, setPurokFilter] = useState("All");
@@ -1285,7 +1244,6 @@ export default function Records() {
   const [selectedId, setSelectedId] = useState(null);
   const [formModal, setFormModal] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const [toasts, setToasts] = useState([]);
@@ -1304,9 +1262,6 @@ export default function Records() {
 
   useEffect(() => {
     let cancelled = false;
-
-    setLoading(true);
-    setLoadError("");
 
     getSeniorCitizens()
       .then((data) => {
@@ -1328,9 +1283,13 @@ export default function Records() {
     };
   }, [reloadKey]);
 
-  useEffect(() => {
+  // Go back to page 1 whenever the filters change.
+  const filterKey = JSON.stringify([search, activeTab, purokFilter, sortBy]);
+  const [pageFilterKey, setPageFilterKey] = useState(filterKey);
+  if (pageFilterKey !== filterKey) {
+    setPageFilterKey(filterKey);
     setCurrentPage(1);
-  }, [search, activeTab, purokFilter, sortBy]);
+  }
 
   /* ------------------------------ Derived data ----------------------------- */
 
@@ -1387,6 +1346,7 @@ export default function Records() {
       return (
         record.name.toLowerCase().includes(query) ||
         record.seniorId.toLowerCase().includes(query) ||
+        record.oscaId.toLowerCase().includes(query) ||
         (queryDigits.length >= 3 &&
           record.contact.replace(/\D/g, "").includes(queryDigits))
       );
@@ -1427,7 +1387,7 @@ export default function Records() {
   };
 
   const pushToast = (message, type = "success") => {
-    const id = `${Date.now()}-${Math.random()}`;
+    const id = ++lastToastId;
     setToasts((previous) => [...previous, { id, message, type }]);
     toastTimers.current.set(
       id,
@@ -1516,31 +1476,6 @@ export default function Records() {
   const clearFollowUp = (record) =>
     changeStatus(record, "Active", `Follow-up mark cleared for ${record.name}.`);
 
-  const confirmDelete = async () => {
-    if (!deleteTarget) return;
-
-    setBusy(true);
-
-    try {
-      await deleteSeniorCitizen(deleteTarget.id);
-
-      setRecords((previous) =>
-        previous.filter((record) => record.id !== deleteTarget.id)
-      );
-      if (selectedId === deleteTarget.id) setSelectedId(null);
-      pushToast(`${deleteTarget.name}'s record was deleted.`);
-      setDeleteTarget(null);
-    } catch (error) {
-      console.error("Failed to delete senior:", error);
-      pushToast(
-        error.message || "Unable to delete this record. Please try again.",
-        "error"
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const menuItemsFor = (record) => {
     const items = [
       {
@@ -1579,15 +1514,7 @@ export default function Records() {
             label: "Archive",
             icon: <FiArchive />,
             onClick: () => setArchiveTarget(record),
-          },
-      { key: "divider", divider: true },
-      {
-        key: "delete",
-        label: "Delete record",
-        icon: <FiTrash2 />,
-        tone: "danger",
-        onClick: () => setDeleteTarget(record),
-      }
+          }
     );
 
     return items;
@@ -1654,10 +1581,8 @@ export default function Records() {
       {/* Heading */}
       <header className="rp-heading">
         <div className="rp-title-row">
-          <span className="rp-title-icon">
-            <FiUsers />
-          </span>
           <div>
+            <span className="rp-eyebrow">People and records</span>
             <h1>Records</h1>
             <p>View, manage and organize all senior citizen records.</p>
           </div>
@@ -1798,7 +1723,7 @@ export default function Records() {
             <button
               type="button"
               className="rp-btn rp-btn-secondary"
-              onClick={() => setReloadKey((key) => key + 1)}
+              onClick={reload}
             >
               <FiRefreshCw />
               Try again
@@ -1914,7 +1839,9 @@ export default function Records() {
                             </span>
                             <span className="rp-senior-text">
                               <strong>{record.name}</strong>
-                              <small>{record.seniorId}</small>
+                              <small>
+                                {record.oscaId ? `OSCA ID ${record.oscaId}` : `Record No. ${record.seniorId} · no OSCA ID yet`}
+                              </small>
                             </span>
                           </button>
                         </td>
@@ -2046,16 +1973,6 @@ export default function Records() {
           busy={busy}
           onConfirm={confirmArchive}
           onClose={() => setArchiveTarget(null)}
-        />
-      )}
-
-      {/* Delete */}
-      {deleteTarget && (
-        <DeleteDialog
-          record={deleteTarget}
-          busy={busy}
-          onConfirm={confirmDelete}
-          onClose={() => setDeleteTarget(null)}
         />
       )}
 

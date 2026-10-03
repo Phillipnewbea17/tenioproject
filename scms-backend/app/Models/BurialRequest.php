@@ -2,14 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\PaidFromFund;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class BurialRequest extends Model
 {
-    use HasFactory;
+    use HasFactory, PaidFromFund;
+
+    /** Where a request came from: the senior app, or recorded by staff. */
+    public const SOURCES = ['App', 'Walk-in'];
 
     protected $fillable = [
+        'source',
         'reference',
         'senior_name',
         'claimant_name',
@@ -30,7 +35,5 @@ class BurialRequest extends Model
         'request_date' => 'date',
         'release_date' => 'date',
         'death_date' => 'date',
-        'request_date' => 'date',
-        'release_date' => 'date',
     ];
 }
