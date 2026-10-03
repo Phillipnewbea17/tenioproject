@@ -11,6 +11,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\MedicalRequestController;
 use App\Http\Controllers\BurialRequestController;
+use App\Http\Controllers\Mobile\MobileAnnouncementController;
+
+// SeniorCompanion mobile app (public, read-only)
+Route::prefix('mobile')->group(function () {
+    Route::get('/announcements', [MobileAnnouncementController::class, 'index']);
+});
 
 
 Route::middleware('auth:sanctum')->group(function () {
