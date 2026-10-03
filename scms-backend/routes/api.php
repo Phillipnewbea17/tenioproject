@@ -107,6 +107,9 @@ Route::prefix('mobile')->group(function () {
     Route::post('/auth/code', [Mobile\AuthController::class, 'sendCode'])->middleware('throttle:6,1');
     Route::post('/auth/verify', [Mobile\AuthController::class, 'verifyCode'])->middleware('throttle:15,1');
 
+    // Public, read-only: active announcements for everyone.
+    Route::get('/announcements', [Mobile\AnnouncementController::class, 'index']);
+
     Route::middleware(['auth:sanctum', 'app.account'])->group(function () {
         Route::post('/auth/sign-out', [Mobile\AuthController::class, 'signOut']);
         Route::get('/profile', [Mobile\ProfileController::class, 'show']);
