@@ -23,6 +23,18 @@ class AuthController extends Controller
             ], 401);
         }
 
+        // Deactivated users must not be able to log in. This is checked after
+        // the password so that someone guessing passwords cannot learn which
+        // accounts are deactivated.
+        if (($user->status ?? 'Active') === 'Inactive') {
+            return response()->json([
+                'message' => 'This account has been deactivated. Please contact an administrator.'
+            ], 403);
+        }
+
+        // Remember when this user last logged in (shown in User Management).
+        $user->forceFill(['last_login_at' => now()])->save();
+
         $token = $user->createToken('scms-admin-token')->plainTextToken;
 
         return response()->json([
@@ -31,7 +43,9 @@ class AuthController extends Controller
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'username' => $user->username,
                 'email' => $user->email,
+                'role' => $user->role,
             ],
         ]);
     }
