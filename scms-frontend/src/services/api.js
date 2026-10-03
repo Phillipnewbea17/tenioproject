@@ -1283,3 +1283,20 @@ export async function addHelpRequestNote(id, note) {
 export async function getDashboardSummary() {
   return apiRequest("/dashboard", {}, "Dashboard request");
 }
+
+// SENIOR APP DOCUMENTS (Document Verification)
+
+// [{ id, type, label, mime_type, size, uploaded_at }] uploaded from the app.
+export async function getApplicationDocuments(applicationId) {
+  return apiRequest(`/applications/${applicationId}/documents`, {}, "Documents request");
+}
+
+// The photo itself, as a Blob. The file needs the staff login, so it is
+// fetched here and shown with URL.createObjectURL instead of a plain link.
+export async function getApplicationDocumentFile(documentId) {
+  const response = await fetch(`${API_URL}/application-documents/${documentId}/file`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
+  return response.blob();
+}

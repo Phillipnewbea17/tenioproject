@@ -22,6 +22,7 @@ import {
   FiX,
   FiXCircle,
 } from "react-icons/fi";
+import ApplicationPhotos from "../components/ApplicationPhotos";
 import "./DocumentVerification.css";
 
 /* -------------------------------------------------------------------------- */
@@ -189,6 +190,9 @@ function normalizeApplication(row) {
   return {
     id: row.id,
     appId: row.application_id || "",
+    // "App" = submitted by the senior through the mobile app.
+    source: row.source || "Walk-in",
+    photoCount: Number(row.documents_count) || 0,
     name: row.name || "Unnamed applicant",
     submittedAt: row.submitted_at,
     status: row.status || "Pending",
@@ -544,6 +548,10 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
               </p>
             ))}
           </div>
+        )}
+
+        {tab === "Documents" && applicant.photoCount > 0 && (
+          <ApplicationPhotos applicationId={applicant.id} />
         )}
 
         {tab === "Documents" && (
@@ -1263,7 +1271,10 @@ export default function DocumentVerification() {
                             </span>
                             <span className="dv-applicant-text">
                               <strong>{applicant.name}</strong>
-                              <small>{applicant.appId || "No ID"}</small>
+                              <small>
+                                {applicant.appId || "No ID"}
+                                {applicant.source === "App" && <span className="dv-source-app">App</span>}
+                              </small>
                             </span>
                           </button>
                         </td>

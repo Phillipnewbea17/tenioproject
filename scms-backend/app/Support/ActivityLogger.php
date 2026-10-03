@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ActivityLog;
+use App\Models\AppAccount;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
@@ -34,12 +35,20 @@ class ActivityLogger
     ): ?ActivityLog {
         try {
             $request = request();
-            $user ??= $request?->user();
+            $signedIn = $request?->user();
+
+            // Only staff Users go in user_id. A senior-app account is named
+            // instead, so its id is never mistaken for a staff user's.
+            if (! $user && $signedIn instanceof User) {
+                $user = $signedIn;
+            } elseif (! $user && $signedIn instanceof AppAccount && ! $userName) {
+                $userName = ($signedIn->full_name ?: $signedIn->displayPhone()) . ' (app)';
+            }
 
             return ActivityLog::create([
                 'user_id' => $user?->id,
                 'user_name' => $user?->name ?? $userName,
-                'role' => $user?->role,
+                'role' => $user?->role ?? ($signedIn instanceof AppAccount ? 'Senior app' : null),
                 'module' => $module,
                 'action' => $action,
                 'record_type' => $record ? class_basename($record) : null,
