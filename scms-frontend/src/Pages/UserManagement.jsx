@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FiAlertCircle,
   FiArrowDown,
   FiArrowUp,
+  FiCheck,
   FiCheckCircle,
   FiChevronLeft,
   FiChevronRight,
+  FiCopy,
   FiEdit2,
   FiEye,
   FiEyeOff,
   FiKey,
+  FiMoreHorizontal,
   FiRefreshCw,
   FiSearch,
   FiShield,
@@ -46,7 +49,15 @@ const ROLES = [
 
 const PAGE_SIZE = 10;
 const MIN_PASSWORD_LENGTH = 8;
+const MIN_USERNAME_LENGTH = 3;
+const USERNAME_PATTERN = /^[a-z0-9._-]+$/i;
 const SKELETON_ROWS = [0, 1, 2, 3, 4];
+const TOAST_DURATION = 4500;
+
+// The logged-in user is read from storage so the page can protect their own
+// row. Save the user object as JSON under this key when you log in, for
+// example: localStorage.setItem("scms_user", JSON.stringify(response.user)).
+const CURRENT_USER_KEY = "scms_user";
 
 const EMPTY_FORM = {
   name: "",
@@ -75,12 +86,19 @@ function initials(name) {
     .toUpperCase();
 }
 
-function formatLastLogin(value) {
-  if (!value) return "Never";
+function getCurrentUser() {
+  for (const storage of [window.localStorage, window.sessionStorage]) {
+    try {
+      const raw = storage.getItem(CURRENT_USER_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {
+      // Ignore unreadable storage and try the next one.
+    }
+  }
+  return null;
+}
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Never";
-
+function formatFullDate(date) {
   return date.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -90,20 +108,44 @@ function formatLastLogin(value) {
   });
 }
 
+// "Just now", "5 min ago", "3 hr ago", "Yesterday", "4 days ago", then a date.
+function formatRelative(date) {
+  const diff = Date.now() - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < minute) return "Just now";
+  if (diff < hour) return `${Math.floor(diff / minute)} min ago`;
+  if (diff < day) return `${Math.floor(diff / hour)} hr ago`;
+  if (diff < 2 * day) return "Yesterday";
+  if (diff < 7 * day) return `${Math.floor(diff / day)} days ago`;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 // Only two roles exist now. Anything that isn't an administrator
 // (including old "Staff" / "Encoder" values) is shown as "User".
 function normalizeRole(role) {
   const value = String(role || "").toLowerCase();
-  return value === "administrator" || value === "admin"
-    ? "Administrator"
-    : "User";
+
+  if (value === "administrator" || value === "admin") return "Administrator";
+
+  if (value && value !== "user") {
+    console.warn(`Unknown role "${role}" is being shown as "User".`);
+  }
+
+  return "User";
 }
 
 // Converts a Laravel user row into the shape this page uses.
 function normalizeUser(user) {
-  const loginTime = user.last_login_at
-    ? new Date(user.last_login_at).getTime()
-    : 0;
+  const loginDate = user.last_login_at ? new Date(user.last_login_at) : null;
+  const hasLogin = loginDate && !Number.isNaN(loginDate.getTime());
 
   return {
     id: user.id,
@@ -112,8 +154,9 @@ function normalizeUser(user) {
     email: user.email || "",
     role: normalizeRole(user.role),
     status: user.status || "Active",
-    lastLogin: formatLastLogin(user.last_login_at),
-    lastLoginTime: Number.isNaN(loginTime) ? 0 : loginTime,
+    lastLoginRelative: hasLogin ? formatRelative(loginDate) : "",
+    lastLoginFull: hasLogin ? formatFullDate(loginDate) : "",
+    lastLoginTime: hasLogin ? loginDate.getTime() : 0,
   };
 }
 
@@ -150,6 +193,11 @@ function validateUserForm(form, { isAdd, users, editingId }) {
 
   if (!username) {
     errors.username = "Enter a username.";
+  } else if (username.length < MIN_USERNAME_LENGTH) {
+    errors.username = `Use at least ${MIN_USERNAME_LENGTH} characters.`;
+  } else if (!USERNAME_PATTERN.test(username)) {
+    errors.username =
+      "Use letters, numbers, dots, underscores or hyphens only. No spaces.";
   } else if (
     users.some(
       (user) =>
@@ -253,6 +301,17 @@ function Field({ label, htmlFor, error, hint, children }) {
 
 function PasswordInput({ id, value, onChange, error, autoFocus, onGenerate }) {
   const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch (error) {
+      console.error("Unable to copy password:", error);
+    }
+  };
 
   return (
     <div className="um-password">
@@ -276,17 +335,30 @@ function PasswordInput({ id, value, onChange, error, autoFocus, onGenerate }) {
         {visible ? <FiEyeOff /> : <FiEye />}
       </button>
       {onGenerate && (
-        <button
-          type="button"
-          className="um-btn um-btn-secondary um-btn-sm"
-          onClick={() => {
-            onGenerate(generatePassword());
-            setVisible(true);
-          }}
-        >
-          <FiRefreshCw />
-          Generate
-        </button>
+        <>
+          <button
+            type="button"
+            className="um-btn um-btn-secondary um-btn-sm"
+            onClick={() => {
+              onGenerate(generatePassword());
+              setVisible(true);
+              setCopied(false);
+            }}
+          >
+            <FiRefreshCw />
+            Generate
+          </button>
+          {value && (
+            <button
+              type="button"
+              className="um-btn um-btn-secondary um-btn-sm"
+              onClick={copyPassword}
+            >
+              {copied ? <FiCheck /> : <FiCopy />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -360,6 +432,182 @@ function StatusBadge({ status }) {
   );
 }
 
+// The on/off switch used in the table. Switching a user off asks to confirm.
+function StatusSwitch({ user, busy, disabledReason, onToggle }) {
+  const active = user.status === "Active";
+  const label = active
+    ? "Deactivate user"
+    : "Activate user";
+
+  return (
+    <div className="um-status-cell" title={disabledReason || label}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={active}
+        aria-label={`${user.name} is ${user.status.toLowerCase()}. ${label}.`}
+        className={`um-switch${active ? " on" : ""}`}
+        onClick={onToggle}
+        disabled={busy || Boolean(disabledReason)}
+      >
+        <span className="um-switch-thumb" />
+      </button>
+      <span className={`um-status-text ${active ? "active" : "inactive"}`}>
+        {user.status}
+      </span>
+    </div>
+  );
+}
+
+function LastLogin({ user }) {
+  if (!user.lastLoginFull) {
+    return <span className="um-faint">No login yet</span>;
+  }
+
+  return (
+    <time title={user.lastLoginFull} className="um-muted">
+      {user.lastLoginRelative}
+    </time>
+  );
+}
+
+// A "more actions" dropdown. It is positioned with fixed coordinates so the
+// scrollable table never clips it.
+function ActionMenu({ label, items, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({});
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const close = useCallback(() => setOpen(false), []);
+
+  const toggle = () => {
+    if (open) {
+      close();
+      return;
+    }
+
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedHeight = items.length * 42 + 16;
+    const openUp = window.innerHeight - rect.bottom < estimatedHeight + 12;
+
+    setPosition(
+      openUp
+        ? {
+            bottom: window.innerHeight - rect.top + 6,
+            right: window.innerWidth - rect.right,
+          }
+        : {
+            top: rect.bottom + 6,
+            right: window.innerWidth - rect.right,
+          }
+    );
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const firstItem = menuRef.current?.querySelector(
+      "button:not(:disabled)"
+    );
+    firstItem?.focus();
+
+    const handlePointer = (event) => {
+      if (
+        menuRef.current?.contains(event.target) ||
+        buttonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      close();
+    };
+
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        close();
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open, close]);
+
+  const handleMenuKey = (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+
+    const buttons = Array.from(
+      menuRef.current.querySelectorAll("button:not(:disabled)")
+    );
+    if (buttons.length === 0) return;
+
+    const index = buttons.indexOf(document.activeElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    buttons[(index + step + buttons.length) % buttons.length].focus();
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="um-icon-btn um-more-btn"
+        onClick={toggle}
+        disabled={disabled}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="More actions"
+      >
+        <FiMoreHorizontal />
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          className="um-menu"
+          role="menu"
+          style={position}
+          onKeyDown={handleMenuKey}
+        >
+          {items.map((item) =>
+            item.divider ? (
+              <div key={item.key} className="um-menu-divider" role="separator" />
+            ) : (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                className={`um-menu-item${item.tone ? ` ${item.tone}` : ""}`}
+                disabled={item.disabled}
+                title={item.hint}
+                onClick={() => {
+                  close();
+                  item.onClick();
+                }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -386,6 +634,18 @@ export default function UserManagement() {
   const [formError, setFormError] = useState("");
 
   const [toasts, setToasts] = useState([]);
+  const toastTimers = useRef(new Map());
+
+  const currentUser = useMemo(() => getCurrentUser(), []);
+
+  // Clear any pending toast timers when leaving the page.
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
   /* ------------------------------ Data loading ----------------------------- */
 
@@ -469,6 +729,33 @@ export default function UserManagement() {
     user.status === "Active" &&
     activeAdminCount <= 1;
 
+  // True when the row belongs to the person who is logged in.
+  const isSelf = (user) => {
+    if (!currentUser) return false;
+
+    if (currentUser.id != null && String(currentUser.id) === String(user.id)) {
+      return true;
+    }
+
+    const sameText = (a, b) =>
+      Boolean(a) && Boolean(b) && String(a).toLowerCase() === String(b).toLowerCase();
+
+    return (
+      sameText(currentUser.username, user.username) ||
+      sameText(currentUser.email, user.email)
+    );
+  };
+
+  // Why an active user cannot be deactivated (empty when they can).
+  const deactivateBlockedReason = (user) => {
+    if (user.status !== "Active") return "";
+    if (isSelf(user)) return "You can't deactivate your own account.";
+    if (isLastActiveAdmin(user)) {
+      return "This is the only active administrator. Make another user an administrator first.";
+    }
+    return "";
+  };
+
   const pageCount = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
   const pageStart = (currentPage - 1) * PAGE_SIZE;
@@ -481,16 +768,20 @@ export default function UserManagement() {
 
   /* -------------------------------- Toasts --------------------------------- */
 
+  const dismissToast = (id) => {
+    clearTimeout(toastTimers.current.get(id));
+    toastTimers.current.delete(id);
+    setToasts((previous) => previous.filter((toast) => toast.id !== id));
+  };
+
   const pushToast = (message, type = "success") => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((previous) => [...previous, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((previous) => previous.filter((toast) => toast.id !== id));
-    }, 4500);
+    toastTimers.current.set(
+      id,
+      setTimeout(() => dismissToast(id), TOAST_DURATION)
+    );
   };
-
-  const dismissToast = (id) =>
-    setToasts((previous) => previous.filter((toast) => toast.id !== id));
 
   /* ------------------------------- Filtering ------------------------------- */
 
@@ -558,13 +849,13 @@ export default function UserManagement() {
 
   const requestToggleStatus = (user) => {
     if (user.status === "Active") {
-      if (isLastActiveAdmin(user)) {
-        pushToast(
-          "This is the only active administrator. Make another user an administrator first.",
-          "error"
-        );
+      const reason = deactivateBlockedReason(user);
+
+      if (reason) {
+        pushToast(reason, "error");
         return;
       }
+
       resetModal();
       setModal({ type: "deactivate", user });
       return;
@@ -582,6 +873,10 @@ export default function UserManagement() {
   };
 
   const updateForm = (field) => (event) => setField(field, event.target.value);
+
+  // Usernames are lowercase and never contain spaces.
+  const updateUsername = (event) =>
+    setField("username", event.target.value.toLowerCase().replace(/\s+/g, ""));
 
   const setPasswordField = (field, value) => {
     setPasswordForm((previous) => ({ ...previous, [field]: value }));
@@ -624,9 +919,13 @@ export default function UserManagement() {
       editingId: isAdd ? null : modal.user.id,
     });
 
-    if (!isAdd && form.role !== "Administrator" && isLastActiveAdmin(modal.user)) {
-      found.role =
-        "This is the only active administrator. Make another user an administrator first.";
+    if (!isAdd && form.role !== "Administrator") {
+      if (isSelf(modal.user) && modal.user.role === "Administrator") {
+        found.role = "You can't remove your own administrator access.";
+      } else if (isLastActiveAdmin(modal.user)) {
+        found.role =
+          "This is the only active administrator. Make another user an administrator first.";
+      }
     }
 
     if (Object.keys(found).length > 0) {
@@ -770,6 +1069,36 @@ export default function UserManagement() {
     },
   ];
 
+  const menuItemsFor = (user) => {
+    const active = user.status === "Active";
+    const blockedReason = deactivateBlockedReason(user);
+
+    return [
+      {
+        key: "view",
+        label: "View details",
+        icon: <FiEye />,
+        onClick: () => openViewModal(user),
+      },
+      {
+        key: "reset",
+        label: "Reset password",
+        icon: <FiKey />,
+        onClick: () => openResetModal(user),
+      },
+      { key: "divider", divider: true },
+      {
+        key: "status",
+        label: active ? "Deactivate user" : "Activate user",
+        icon: active ? <FiUserX /> : <FiUserCheck />,
+        tone: active ? "danger" : "success",
+        disabled: Boolean(blockedReason),
+        hint: blockedReason || undefined,
+        onClick: () => requestToggleStatus(user),
+      },
+    ];
+  };
+
   return (
     <div className="user-management-page">
       {/* Heading */}
@@ -780,7 +1109,7 @@ export default function UserManagement() {
           </span>
           <div>
             <h1>User Management</h1>
-            <p>Add people, choose their role, and control who can log in.</p>
+            <p>Manage who can log in to SCMS and what they can do.</p>
           </div>
         </div>
 
@@ -852,7 +1181,7 @@ export default function UserManagement() {
               setPage(1);
             }}
           >
-            <option value="All">All statuses</option>
+            <option value="All">All status</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
           </select>
@@ -950,7 +1279,7 @@ export default function UserManagement() {
                     sort={sort}
                     onSort={handleSort}
                   />
-                  <th>Email</th>
+                  <th className="um-col-hide-xs">Email</th>
                   <SortHeader
                     label="Role"
                     sortKey="role"
@@ -984,7 +1313,7 @@ export default function UserManagement() {
                           <span className="um-skeleton um-skeleton-line" />
                         </div>
                       </td>
-                      <td>
+                      <td className="um-col-hide-xs">
                         <span className="um-skeleton um-skeleton-line" />
                       </td>
                       <td>
@@ -1003,6 +1332,7 @@ export default function UserManagement() {
                 {!loading &&
                   pageRows.map((user) => {
                     const busy = busyId === user.id;
+                    const self = isSelf(user);
 
                     return (
                       <tr
@@ -1020,69 +1350,50 @@ export default function UserManagement() {
                               {initials(user.name)}
                             </span>
                             <span className="um-user-text">
-                              <strong>{user.name}</strong>
+                              <strong>
+                                {user.name}
+                                {self && <span className="um-you">You</span>}
+                              </strong>
                               {user.username && <small>@{user.username}</small>}
+                              <small className="um-email-mobile">
+                                {user.email}
+                              </small>
                             </span>
                           </button>
                         </td>
-                        <td className="um-email">{user.email}</td>
+                        <td className="um-email um-col-hide-xs">{user.email}</td>
                         <td>
                           <RoleBadge role={user.role} />
                         </td>
                         <td>
-                          <StatusBadge status={user.status} />
+                          <StatusSwitch
+                            user={user}
+                            busy={busy}
+                            disabledReason={deactivateBlockedReason(user)}
+                            onToggle={() => requestToggleStatus(user)}
+                          />
                         </td>
-                        <td className="um-col-hide-sm um-muted">
-                          {user.lastLogin}
+                        <td className="um-col-hide-sm">
+                          <LastLogin user={user} />
                         </td>
                         <td>
                           <div className="um-actions">
                             <button
                               type="button"
-                              className="um-icon-btn"
-                              title="Edit user"
-                              aria-label={`Edit ${user.name}`}
+                              className="um-btn um-btn-secondary um-btn-sm"
                               onClick={() => openEditModal(user)}
                               disabled={busy}
+                              aria-label={`Edit ${user.name}`}
                             >
                               <FiEdit2 />
+                              Edit
                             </button>
 
-                            <button
-                              type="button"
-                              className="um-icon-btn"
-                              title="Reset password"
-                              aria-label={`Reset password for ${user.name}`}
-                              onClick={() => openResetModal(user)}
+                            <ActionMenu
+                              label={`More actions for ${user.name}`}
                               disabled={busy}
-                            >
-                              <FiKey />
-                            </button>
-
-                            <button
-                              type="button"
-                              className={`um-icon-btn ${
-                                user.status === "Active" ? "danger" : "success"
-                              }`}
-                              title={
-                                user.status === "Active"
-                                  ? "Deactivate user"
-                                  : "Activate user"
-                              }
-                              aria-label={
-                                user.status === "Active"
-                                  ? `Deactivate ${user.name}`
-                                  : `Activate ${user.name}`
-                              }
-                              onClick={() => requestToggleStatus(user)}
-                              disabled={busy}
-                            >
-                              {user.status === "Active" ? (
-                                <FiUserX />
-                              ) : (
-                                <FiUserCheck />
-                              )}
-                            </button>
+                              items={menuItemsFor(user)}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -1145,7 +1456,10 @@ export default function UserManagement() {
                 {initials(modal.user.name)}
               </span>
               <div>
-                <h3>{modal.user.name}</h3>
+                <h3>
+                  {modal.user.name}
+                  {isSelf(modal.user) && <span className="um-you">You</span>}
+                </h3>
                 {modal.user.username && <p>@{modal.user.username}</p>}
               </div>
             </div>
@@ -1169,7 +1483,11 @@ export default function UserManagement() {
               </div>
               <div>
                 <dt>Last login</dt>
-                <dd>{modal.user.lastLogin}</dd>
+                <dd>
+                  {modal.user.lastLoginFull
+                    ? `${modal.user.lastLoginFull} (${modal.user.lastLoginRelative})`
+                    : "No login yet"}
+                </dd>
               </div>
             </dl>
           </div>
@@ -1227,13 +1545,16 @@ export default function UserManagement() {
                   label="Username"
                   htmlFor="um-username"
                   error={errors.username}
+                  hint="Letters, numbers, dots, underscores or hyphens."
                 >
                   <input
                     id="um-username"
                     type="text"
                     value={form.username}
-                    onChange={updateForm("username")}
+                    onChange={updateUsername}
                     autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck="false"
                     aria-invalid={Boolean(errors.username)}
                     aria-describedby={
                       errors.username ? "um-username-error" : undefined

@@ -1,169 +1,423 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
-import { getSeniorCitizens, createSeniorCitizen,  deleteSeniorCitizen,  updateSeniorCitizen} from "../services/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  FiSearch,
-  FiFilter,
-  FiChevronDown,
+  getSeniorCitizens,
+  createSeniorCitizen,
+  deleteSeniorCitizen,
+  updateSeniorCitizen,
+} from "../services/api";
+import {
+  FiAlertCircle,
+  FiAlertTriangle,
+  FiArchive,
+  FiCheckCircle,
   FiChevronLeft,
   FiChevronRight,
-  FiUsers,
-  FiHeart,
-  FiAlertCircle,
-  FiArchive,
-  FiPlus,
   FiDownload,
+  FiEdit2,
+  FiEye,
+  FiInbox,
   FiMoreVertical,
+  FiPlus,
+  FiRefreshCw,
+  FiRotateCcw,
+  FiSearch,
+  FiTrash2,
+  FiUserCheck,
+  FiUsers,
   FiX,
-  FiCheckCircle,
 } from "react-icons/fi";
 import "./Records.css";
-import { createPortal } from "react-dom";
 
-/* ---------------------------------------------------------------- */
-/* Mock data — swap for real API data                                */
-/* ---------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Constants                                                                  */
+/* -------------------------------------------------------------------------- */
 
-const PUROKS = ["Purok 1", "Purok 2", "Purok 3", "Purok 4", "Purok 5"];
-const STATUSES = ["Active", "Needs follow-up", "Needs attention", "Archived"];
-const CONDITIONS = ["Hypertension", "Diabetes", "Arthritis", "Asthma", "None noted"];
-const BLOOD_TYPES = ["O+", "A+", "B+", "AB+", "O-"];
-const MEDICATIONS = ["Amlodipine", "Metformin", "Ibuprofen", "Salbutamol", "None"];
+const PUROKS = Array.from({ length: 7 }, (_, index) => `Purok ${index + 1}`);
 const GENDERS = ["Male", "Female"];
-const NAMES = [
-  "Lucia Morales", "Ana Cruz", "Ricardo Lim", "Elena Cruz", "Fernando Castillo",
-  "Rosario Aquino", "Manuel Torres", "Corazon Villanueva", "Antonio Mendoza",
-  "Remedios Flores", "Eduardo Santos", "Consuelo Reyes", "Alfredo Garcia",
-  "Milagros Dela Cruz", "Benjamin Santos", "Soledad Reyes", "Rogelio Perez",
-  "Josefina Ramos", "Domingo Cruz", "Aurora Fernandez", "Salvador Diaz",
-  "Victoria Marquez", "Teresita Ocampo", "Herminia Salazar", "Bienvenido Rivera",
+const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const CIVIL_STATUSES = ["Single", "Married", "Widowed", "Separated", "Divorced"];
+
+// Statuses that mean "no longer in the active list".
+const ARCHIVED_STATUSES = ["Archived", "Inactive", "Deceased"];
+
+// Old records may still carry these manual statuses. They are shown as
+// "Active" with a follow-up mark that staff can clear.
+const LEGACY_FLAG_STATUSES = ["Needs follow-up", "Needs attention"];
+
+const MIN_SENIOR_AGE = 60;
+const STALE_DAYS = 365;
+const PENDING_DAYS = 7;
+const PAGE_SIZE = 8;
+const SKELETON_ROWS = [0, 1, 2, 3, 4];
+const TOAST_DURATION = 4500;
+const DAY = 24 * 60 * 60 * 1000;
+
+const TABS = ["All", "Active", "Pending", "Needs attention", "Archived"];
+
+const SORT_OPTIONS = [
+  { value: "updated", label: "Recently updated" },
+  { value: "name", label: "Name (A to Z)" },
+  { value: "age", label: "Age (oldest first)" },
 ];
 
-function generateExtra(count, startId) {
-  const list = [];
-  for (let i = 0; i < count; i++) {
-    const name = NAMES[i % NAMES.length];
-    const status = STATUSES[(i + 2) % STATUSES.length];
-    list.push({
-      id: startId + i,
-      seniorId: `SC-2026-${String(startId + i).padStart(4, "0")}`,
-      name: `${name}`,
-      age: 60 + ((i * 3) % 30),
-      gender: GENDERS[i % 2],
-      purok: PUROKS[i % PUROKS.length],
-      contact: `09${10 + (i % 9)} ${String(200 + i * 3).slice(-3)} ${String(4000 + i * 17).slice(-4)}`,
-      status,
-      lastUpdated: new Date(2026, 4, 20 - (i % 15), 9 + (i % 8), (i * 7) % 60),
-      subNote: i % 4 === 0 ? "Updated today" : `Jul ${((i * 3) % 27) + 1}, 2026`,
-      medical: {
-        bloodType: BLOOD_TYPES[i % BLOOD_TYPES.length],
-        condition: CONDITIONS[i % CONDITIONS.length],
-        maintenance: MEDICATIONS[i % MEDICATIONS.length],
-        lastCheckup: `May ${((i * 2) % 27) + 1}, 2026`,
-      },
-      other: {
-        civilStatus: i % 3 === 0 ? "Widowed" : i % 3 === 1 ? "Married" : "Single",
-        emergencyContact: NAMES[(i + 5) % NAMES.length],
-        relationship: i % 2 === 0 ? "Child" : "Spouse",
-        oscaId: i % 6 === 0 ? "Inactive" : "Active",
-      },
-    });
-  }
-  return list;
-}
+const STATUS_CLASS = {
+  Active: "active",
+  Pending: "pending",
+  Inactive: "inactive",
+  Deceased: "deceased",
+  Archived: "deceased",
+};
 
-const BASE_RECORDS = [
-  {
-    id: 1, seniorId: "SC-2026-0001", name: "Maria Santos", age: 84, gender: "Female",
-    purok: "Purok 1", contact: "0917 111 2222", status: "Needs attention",
-    lastUpdated: new Date(2026, 4, 25, 10, 45), subNote: "Updated today",
-    medical: { bloodType: "A+", condition: "Arthritis", maintenance: "Ibuprofen", lastCheckup: "May 20, 2026" },
-    other: { civilStatus: "Widowed", emergencyContact: "Juan Santos", relationship: "Son", oscaId: "Active" },
-  },
-  {
-    id: 2, seniorId: "SC-2026-0002", name: "Juan Dela Cruz", age: 72, gender: "Male",
-    purok: "Purok 2", contact: "0917 123 4567", status: "Needs follow-up",
-    lastUpdated: new Date(2026, 4, 25, 9, 30), subNote: "Jul 25, 2026",
-    medical: { bloodType: "O+", condition: "Hypertension", maintenance: "Amlodipine", lastCheckup: "May 10, 2026" },
-    other: { civilStatus: "Married", emergencyContact: "Maria Dela Cruz", relationship: "Wife", oscaId: "Active" },
-  },
-  {
-    id: 3, seniorId: "SC-2026-0003", name: "Pedro Reyes", age: 74, gender: "Male",
-    purok: "Purok 3", contact: "0920 345 6789", status: "Active",
-    lastUpdated: new Date(2026, 4, 24, 16, 15), subNote: "Jul 24, 2026",
-    medical: { bloodType: "B+", condition: "None noted", maintenance: "None", lastCheckup: "May 12, 2026" },
-    other: { civilStatus: "Married", emergencyContact: "Elena Reyes", relationship: "Wife", oscaId: "Active" },
-  },
-  {
-    id: 4, seniorId: "SC-2026-0004", name: "Andrea Gonzales", age: 81, gender: "Female",
-    purok: "Purok 1", contact: "0916 456 7890", status: "Needs follow-up",
-    lastUpdated: new Date(2026, 4, 24, 11, 20), subNote: "Jul 24, 2026",
-    medical: { bloodType: "AB+", condition: "Diabetes", maintenance: "Metformin", lastCheckup: "May 8, 2026" },
-    other: { civilStatus: "Widowed", emergencyContact: "Carlos Gonzales", relationship: "Son", oscaId: "Active" },
-  },
-  {
-    id: 5, seniorId: "SC-2026-0005", name: "Ramon Bautista", age: 66, gender: "Male",
-    purok: "Purok 4", contact: "0915 567 8901", status: "Active",
-    lastUpdated: new Date(2026, 4, 24, 14, 5), subNote: "Jul 24, 2026",
-    medical: { bloodType: "O-", condition: "Asthma", maintenance: "Salbutamol", lastCheckup: "May 15, 2026" },
-    other: { civilStatus: "Single", emergencyContact: "Liza Bautista", relationship: "Sister", oscaId: "Active" },
-  },
-  ...generateExtra(243, 6),
-];
+const EMPTY_FORM = {
+  name: "",
+  birthDate: "",
+  gender: "Male",
+  purok: PUROKS[0],
+  contact: "",
+  bloodType: "",
+  condition: "",
+  maintenance: "",
+  lastCheckup: "",
+  civilStatus: "",
+  oscaId: "Active",
+  emergencyContact: "",
+  relationship: "",
+};
 
-const PAGE_SIZE = 5;
+// Laravel field names mapped back to this form's field names.
+const SERVER_FIELD_MAP = {
+  name: "name",
+  birth_date: "birthDate",
+  age: "birthDate",
+  gender: "gender",
+  purok: "purok",
+  contact: "contact",
+  blood_type: "bloodType",
+  condition: "condition",
+  maintenance: "maintenance",
+  last_checkup: "lastCheckup",
+  civil_status: "civilStatus",
+  osca_id: "oscaId",
+  emergency_contact: "emergencyContact",
+  relationship: "relationship",
+};
 
-/* ---------------------------------------------------------------- */
-/* Helpers                                                            */
-/* ---------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
 function initials(name) {
-  return name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
+  return (name || "?")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
 }
 
 const AVATAR_TONES = ["tone-1", "tone-2", "tone-3", "tone-4", "tone-5"];
+
 function avatarTone(id) {
-  return AVATAR_TONES[id % AVATAR_TONES.length];
+  const number = Number(id);
+  const index = Number.isFinite(number) ? Math.abs(number) : 0;
+  return AVATAR_TONES[index % AVATAR_TONES.length];
 }
 
-const STATUS_DOT = {
-  Active: "dot-green",
-  "Needs follow-up": "dot-amber",
-  "Needs attention": "dot-red",
-  Archived: "dot-gray",
-};
+function formatDateTime(date) {
+  if (!date) return { date: "-", time: "" };
 
-const STATUS_BADGE = {
-  Active: "badge-green",
-  "Needs follow-up": "badge-amber",
-  "Needs attention": "badge-red",
-  Archived: "badge-gray",
-  Inactive: "badge-amber",
-  Deceased: "badge-gray",
-};
-function formatDateTime(d) {
-  const date = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return { date, time };
+  return {
+    date: date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }),
+  };
 }
 
-function useOutsideClose(onClose) {
-  const ref = useRef(null);
-  useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
+function formatLongDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function todayISO() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+// Age from a YYYY-MM-DD birth date. Returns "" when the date is missing.
+function computeAge(birthDate) {
+  if (!birthDate) return "";
+
+  const [year, month, day] = birthDate.split("-").map(Number);
+  if (!year || !month || !day) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+
+  if (
+    today.getMonth() + 1 < month ||
+    (today.getMonth() + 1 === month && today.getDate() < day)
+  ) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+// Types digits only and shows them as 09XX XXX XXXX.
+function formatContactInput(value) {
+  const digits = String(value).replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+  return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+}
+
+function isValidContact(value) {
+  const digits = String(value).replace(/\D/g, "");
+  return digits.length === 11 && digits.startsWith("09");
+}
+
+// Converts a Laravel senior citizen row into the shape this page uses.
+function buildRecord(row) {
+  const rawStatus = row.status || "Active";
+  const legacyFlag = LEGACY_FLAG_STATUSES.includes(rawStatus);
+  const status = legacyFlag ? "Active" : rawStatus;
+
+  const updated = row.updated_at ? new Date(row.updated_at) : null;
+  const birthDate = row.birth_date ? String(row.birth_date).slice(0, 10) : "";
+  const storedAge =
+    row.age === null || row.age === undefined || row.age === ""
+      ? ""
+      : Number(row.age);
+
+  return {
+    id: row.id,
+    seniorId: row.senior_id || "",
+    name: row.name || "Unnamed senior",
+    birthDate,
+    // Age is worked out from the birth date so it never goes out of date.
+    age: birthDate ? computeAge(birthDate) : storedAge,
+    gender: row.gender || "",
+    purok: row.purok || "",
+    contact: row.contact || "",
+    status,
+    legacyFlag,
+    isArchived: ARCHIVED_STATUSES.includes(status),
+    lastUpdated: updated && !Number.isNaN(updated.getTime()) ? updated : null,
+    bloodType: row.blood_type || "",
+    condition: row.condition || "",
+    maintenance: row.maintenance || "",
+    lastCheckup: row.last_checkup ? String(row.last_checkup).slice(0, 10) : "",
+    civilStatus: row.civil_status || "",
+    emergencyContact: row.emergency_contact || "",
+    relationship: row.relationship || "",
+    oscaId: row.osca_id || "Active",
+  };
+}
+
+function recordToForm(record) {
+  return {
+    name: record.name,
+    birthDate: record.birthDate,
+    gender: record.gender || "Male",
+    purok: record.purok || PUROKS[0],
+    contact: record.contact,
+    bloodType: record.bloodType,
+    condition: record.condition,
+    maintenance: record.maintenance,
+    lastCheckup: record.lastCheckup,
+    civilStatus: record.civilStatus,
+    oscaId: record.oscaId || "Active",
+    emergencyContact: record.emergencyContact,
+    relationship: record.relationship,
+  };
+}
+
+function formToPayload(form) {
+  return {
+    name: form.name.trim(),
+    age: Number(computeAge(form.birthDate)),
+    birth_date: form.birthDate || null,
+    gender: form.gender,
+    purok: form.purok,
+    contact: form.contact.trim() || null,
+
+    blood_type: form.bloodType || null,
+    condition: form.condition.trim() || null,
+    maintenance: form.maintenance.trim() || null,
+    last_checkup: form.lastCheckup || null,
+
+    civil_status: form.civilStatus || null,
+    emergency_contact: form.emergencyContact.trim() || null,
+    relationship: form.relationship.trim() || null,
+    osca_id: form.oscaId || "Active",
+  };
+}
+
+// Laravel returns validation problems as { errors: { field: ["message"] } }.
+function extractFieldErrors(error) {
+  const source = error?.errors || error?.data?.errors;
+  if (!source || typeof source !== "object") return {};
+
+  const result = {};
+
+  Object.entries(source).forEach(([field, messages]) => {
+    const target = SERVER_FIELD_MAP[field];
+    if (!target || result[target]) return;
+    result[target] = Array.isArray(messages) ? messages[0] : String(messages);
+  });
+
+  return result;
+}
+
+function duplicateKey(name, birthDate) {
+  if (!birthDate) return "";
+  return `${String(name).trim().toLowerCase()}|${birthDate}`;
+}
+
+// The reasons a senior needs attention. They are worked out from the data,
+// so nobody has to remember to mark a record by hand.
+function getFlags(record, duplicateGroups) {
+  if (record.isArchived) return [];
+
+  const flags = [];
+
+  if (!record.contact) {
+    flags.push({
+      key: "contact",
+      label: "No contact number",
+      detail: "Announcements and calls cannot reach this senior.",
+    });
+  }
+
+  if (!record.birthDate) {
+    flags.push({
+      key: "birthdate",
+      label: "No birth date",
+      detail: "Age and the birthday list depend on the birth date.",
+    });
+  } else if (record.age !== "" && record.age < MIN_SENIOR_AGE) {
+    flags.push({
+      key: "age",
+      label: `Under ${MIN_SENIOR_AGE} years old`,
+      detail: `Senior citizen eligibility starts at ${MIN_SENIOR_AGE}. Check the birth date.`,
+    });
+  }
+
+  if (!record.emergencyContact) {
+    flags.push({
+      key: "emergency",
+      label: "No emergency contact",
+      detail: "Nobody is listed to call in an emergency.",
+    });
+  }
+
+  if (record.status === "Pending" && record.lastUpdated) {
+    const days = Math.floor((Date.now() - record.lastUpdated.getTime()) / DAY);
+    if (days >= PENDING_DAYS) {
+      flags.push({
+        key: "pending",
+        label: `Pending for ${days} days`,
+        detail: "This registration is still waiting for verification.",
+      });
     }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-  return ref;
+  }
+
+  if (record.lastUpdated) {
+    const days = Math.floor((Date.now() - record.lastUpdated.getTime()) / DAY);
+    if (days >= STALE_DAYS) {
+      flags.push({
+        key: "stale",
+        label: "Not updated in 12 months",
+        detail: "Confirm this senior still lives in the area and details are current.",
+      });
+    }
+  }
+
+  const key = duplicateKey(record.name, record.birthDate);
+  const twins = key
+    ? (duplicateGroups.get(key) || []).filter((other) => other.id !== record.id)
+    : [];
+
+  if (twins.length > 0) {
+    flags.push({
+      key: "duplicate",
+      label: "Possible duplicate",
+      detail: `Same name and birth date as ${twins
+        .map((other) => other.seniorId || other.name)
+        .join(", ")}.`,
+    });
+  }
+
+  if (record.legacyFlag) {
+    flags.push({
+      key: "legacy",
+      label: "Marked for follow-up",
+      detail: "Staff marked this record earlier. Clear the mark once it is handled.",
+    });
+  }
+
+  return flags;
 }
 
-function downloadCSV(filename, rows) {
-  const header = ["Senior ID", "Name", "Age", "Gender", "Purok", "Contact", "Status", "Last Updated"];
-  const csvRows = rows.map((r) => [
-    r.seniorId, r.name, r.age, r.gender, r.purok, r.contact, r.status, formatDateTime(r.lastUpdated).date,
+function csvCell(value) {
+  let text = String(value ?? "");
+
+  // Stop spreadsheet programs from running text that looks like a formula.
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCSV(filename, rows, flagsById) {
+  const header = [
+    "Senior ID",
+    "Name",
+    "Age",
+    "Birth date",
+    "Gender",
+    "Purok",
+    "Contact",
+    "Status",
+    "Needs attention",
+    "Last updated",
+  ];
+
+  const body = rows.map((record) => [
+    record.seniorId,
+    record.name,
+    record.age,
+    record.birthDate,
+    record.gender,
+    record.purok,
+    record.contact,
+    record.status,
+    (flagsById.get(record.id) || []).map((flag) => flag.label).join("; "),
+    record.lastUpdated ? formatDateTime(record.lastUpdated).date : "",
   ]);
-  const csv = [header, ...csvRows].map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+
+  const csv = [header, ...body]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\n");
+
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -175,1201 +429,1654 @@ function downloadCSV(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-/* ---------------------------------------------------------------- */
-/* Add New Senior modal                                              */
-/* ---------------------------------------------------------------- */
+function validateForm(form, { records, editingId }) {
+  const errors = {};
+  const name = form.name.trim();
 
-const EMPTY_FORM = {name: "",age: "",birthDate: "",gender: "Male",purok: PUROKS[0],contact: "",};
+  if (!name) {
+    errors.name = "Enter the senior's full name.";
+  } else if (name.length < 2) {
+    errors.name = "Enter at least 2 characters.";
+  }
 
-function AddSeniorModal({ onClose, onSave }) {
-  const [form, setForm] = useState(EMPTY_FORM);
+  if (!form.birthDate) {
+    errors.birthDate = "Select the birth date.";
+  } else if (form.birthDate > todayISO()) {
+    errors.birthDate = "The birth date cannot be in the future.";
+  } else {
+    const age = computeAge(form.birthDate);
+    if (age === "" || age < MIN_SENIOR_AGE) {
+      errors.birthDate = `Senior citizens must be at least ${MIN_SENIOR_AGE} years old. This person is ${age}.`;
+    }
+  }
 
-  const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  if (form.contact.trim() && !isValidContact(form.contact)) {
+    errors.contact = "Enter an 11-digit mobile number that starts with 09.";
+  }
 
-  const submit = (e) => {
-    e.preventDefault();
-    if (!form.name.trim() || !form.age) return;
-    onSave(form);
-  };
+  if (!errors.name && form.birthDate) {
+    const key = duplicateKey(name, form.birthDate);
+    const match = records.find(
+      (record) =>
+        record.id !== editingId &&
+        duplicateKey(record.name, record.birthDate) === key
+    );
+
+    if (match) {
+      errors.name = `A record for this person already exists (${match.seniorId}).`;
+    }
+  }
+
+  return errors;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small building blocks                                                      */
+/* -------------------------------------------------------------------------- */
+
+// Renders children into document.body so modals, drawers and menus are never
+// clipped by the app layout. The wrapper keeps the page's styles applied.
+function Layer({ children }) {
+  return createPortal(
+    <div className="records-page rp-layer">{children}</div>,
+    document.body
+  );
+}
+
+function StatusBadge({ status }) {
+  return (
+    <span className={`rp-badge ${STATUS_CLASS[status] || "active"}`}>
+      <span className="rp-badge-dot" />
+      {status}
+    </span>
+  );
+}
+
+function AttentionCell({ flags }) {
+  if (flags.length === 0) return <span className="rp-faint">-</span>;
+
+  const [first, ...rest] = flags;
 
   return (
-    <div className="records-page modal-overlay archive-overlay">
-      <div className="modal-card" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Add New Senior</h3>
-          <button type="button" className="modal-close" onClick={onClose}>
-            <FiX />
-          </button>
-        </div>
-
-        <form onSubmit={submit} className="modal-form">
-          <label className="field-label">Full Name</label>
-          <input className="field-input" type="text" value={form.name} onChange={update("name")} required />
-
-            <label className="field-label">Birth Date</label>
-<input
-  className="field-input"
-  type="date"
-  value={form.birthDate}
-  onChange={(event) => {
-    const birthDate = event.target.value;
-    let age = "";
-
-    if (birthDate) {
-      const [year, month, day] = birthDate.split("-").map(Number);
-      const today = new Date();
-
-      age = today.getFullYear() - year;
-
-      if (
-        today.getMonth() + 1 < month ||
-        (today.getMonth() + 1 === month && today.getDate() < day)
-      ) {
-        age -= 1;
-      }
-    }
-
-    setForm((previous) => ({
-      ...previous,
-      birthDate,
-      age,
-    }));
-  }}
-  required
-/>
-
-<div className="field-row">
-  <div>
-    <label className="field-label">Age</label>
-    <input
-      className="field-input"
-      type="number"
-      value={form.age}
-      readOnly
-      placeholder="Calculated from birth date"
-    />
-  </div>
-            <div>
-              <label className="field-label">Gender</label>
-              <select className="field-input" value={form.gender} onChange={update("gender")}>
-                {GENDERS.map((g) => (
-                  <option key={g} value={g}>{g}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="field-row">
-            <div>
-              <label className="field-label">Purok</label>
-              <select className="field-input" value={form.purok} onChange={update("purok")}>
-                {PUROKS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="field-label">Contact Number</label>
-              <input className="field-input" type="text" placeholder="09XX XXX XXXX" value={form.contact} onChange={update("contact")} />
-            </div>
-          </div>
-<h4>Medical Information</h4>
-
-<div className="field-row">
-  <div>
-    <label className="field-label">Blood Type</label>
-    <input
-      className="field-input"
-      type="text"
-      value={form.bloodType ?? ""}
-      onChange={update("bloodType")}
-    />
-  </div>
-  <div>
-    <label className="field-label">Condition</label>
-    <input
-      className="field-input"
-      type="text"
-      value={form.condition ?? ""}
-      onChange={update("condition")}
-    />
-  </div>
-</div>
-
-<div className="field-row">
-  <div>
-    <label className="field-label">Maintenance</label>
-    <input
-      className="field-input"
-      type="text"
-      value={form.maintenance ?? ""}
-      onChange={update("maintenance")}
-    />
-  </div>
-</div>
-
-<h4>Other Information</h4>
-
-<div className="field-row">
-  <div>
-    <label className="field-label">Civil Status</label>
-   <select
-  className="field-input"
-  value={form.civilStatus ?? ""}
-  onChange={update("civilStatus")}
->
-  <option value="">Select civil status</option>
-  <option value="Single">Single</option>
-  <option value="Married">Married</option>
-  <option value="Widowed">Widowed</option>
-  <option value="Separated">Separated</option>
-  <option value="Divorced">Divorced</option>
-</select>
-  </div>
-  <div>
-    <label className="field-label">OSCA ID Status</label>
-    <select
-      className="field-input"
-      value={form.oscaId ?? "Active"}
-      onChange={update("oscaId")}
+    <div
+      className="rp-flags"
+      title={flags.map((flag) => flag.label).join(", ")}
     >
-      <option value="Active">Active</option>
-      <option value="Inactive">Inactive</option>
-    </select>
-  </div>
-</div>
-
-<label className="field-label">Emergency Contact</label>
-<input
-  className="field-input"
-  type="text"
-  value={form.emergencyContact ?? ""}
-  onChange={update("emergencyContact")}
-/>
-
-<label className="field-label"> Emergency Contact’s Relationship to Senior</label>
-<input
-  className="field-input"
-  type="text"
-  value={form.relationship ?? ""}
-  onChange={update("relationship")}
-/>
-          <div className="modal-actions">
-            <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary">Add Senior</button>
-          </div>
-        </form>
-      </div>
+      <span className="rp-flag">{first.label}</span>
+      {rest.length > 0 && <span className="rp-flag more">+{rest.length}</span>}
     </div>
   );
 }
 
-/* ---------------------------------------------------------------- */
-/* Side panel                                                         */
-/* ---------------------------------------------------------------- */
-function EditSeniorModal({ record, onClose, onSave }) {
-  const [form, setForm] = useState({
-    name: record.name || "",
-    age: record.age || "",
-    birthDate: record.birthDate || "",
-    gender: record.gender || "Male",
-    purok: record.purok || PUROKS[0],
-    contact: record.contact || "",
+// A "more actions" menu, positioned with fixed coordinates.
+function RowMenu({ label, items }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({});
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
 
-    bloodType: record.medical?.bloodType || "",
-    condition: record.medical?.condition || "",
-    maintenance: record.medical?.maintenance || "",
-    lastCheckup:
-      record.medical?.lastCheckup &&
-      record.medical.lastCheckup !== "-"
-        ? String(record.medical.lastCheckup).slice(0, 10)
-        : "",
+  const close = useCallback(() => setOpen(false), []);
 
-    civilStatus: record.other?.civilStatus || "",
-    emergencyContact: record.other?.emergencyContact || "",
-    relationship: record.other?.relationship || "",
-    oscaId: record.other?.oscaId || "Active",
-  });
-
-  const update = (field) => (e) => {
-    setForm((prev) => ({
-      ...prev,
-      [field]: e.target.value,
-    }));
-  };
-
-  const submit = (e) => {
-    e.preventDefault();
-    onSave(record.id, form);
-  };
-
-  return (
-    <div className="modal-overlay" onMouseDown={onClose}>
-      <div
-        className="modal-card"
-        onMouseDown={(e) => e.stopPropagation()}
-        style={{ maxHeight: "90vh", overflowY: "auto" }}
-      >
-        <div className="modal-header">
-          <h3>Edit Senior Record</h3>
-
-          <button
-            type="button"
-            className="modal-close"
-            onClick={onClose}
-          >
-            <FiX />
-          </button>
-        </div>
-
-      <form
-  className="modal-form"
-  onSubmit={(event) => {
-    if (
-      !form.birthDate ||
-      form.age === "" ||
-      !Number.isFinite(Number(form.age)) ||
-      Number(form.age) < 60
-    ) {
-      event.preventDefault();
-      alert("Please select a valid birth date. Senior citizens must be at least 60 years old.");
+  const toggle = () => {
+    if (open) {
+      close();
       return;
     }
 
-    submit(event);
-  }}
->
-          <label className="field-label">Full Name</label>
-          <input
-            className="field-input"
-            type="text"
-            value={form.name}
-            onChange={update("name")}
-            required
-          />
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedHeight = items.length * 42 + 16;
+    const openUp = window.innerHeight - rect.bottom < estimatedHeight + 12;
 
-          <label className="field-label">Birth Date</label>
-              <input className="field-input" type="date" value={form.birthDate} onChange={update("birthDate")}/>
+    setPosition(
+      openUp
+        ? {
+            bottom: window.innerHeight - rect.top + 6,
+            right: window.innerWidth - rect.right,
+          }
+        : {
+            top: rect.bottom + 6,
+            right: window.innerWidth - rect.right,
+          }
+    );
+    setOpen(true);
+  };
 
-          <div className="field-row">
-            <div>
-              <label className="field-label">Age</label>
-              <input
-                className="field-input"
-                type="number"
-                min="60"
-                value={form.age}
-                onChange={update("age")}
-                required
-              />
-            </div>
+  useEffect(() => {
+    if (!open) return undefined;
 
-            <div>
-              <label className="field-label">Gender</label>
-              <select
-                className="field-input"
-                value={form.gender}
-                onChange={update("gender")}
-              >
-                {GENDERS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
+    menuRef.current?.querySelector("button:not(:disabled)")?.focus();
+
+    const handlePointer = (event) => {
+      if (
+        menuRef.current?.contains(event.target) ||
+        buttonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      close();
+    };
+
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        close();
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open, close]);
+
+  const handleMenuKey = (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+
+    const buttons = Array.from(
+      menuRef.current.querySelectorAll("button:not(:disabled)")
+    );
+    if (buttons.length === 0) return;
+
+    const index = buttons.indexOf(document.activeElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    buttons[(index + step + buttons.length) % buttons.length].focus();
+  };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="rp-icon-btn rp-more-btn"
+        onClick={toggle}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="More actions"
+      >
+        <FiMoreVertical />
+      </button>
+
+      {open && (
+        <Layer>
+          <div
+            ref={menuRef}
+            className="rp-menu"
+            role="menu"
+            style={position}
+            onKeyDown={handleMenuKey}
+          >
+            {items.map((item) =>
+              item.divider ? (
+                <div key={item.key} className="rp-menu-divider" role="separator" />
+              ) : (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="menuitem"
+                  className={`rp-menu-item${item.tone ? ` ${item.tone}` : ""}`}
+                  onClick={() => {
+                    close();
+                    item.onClick();
+                  }}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              )
+            )}
           </div>
+        </Layer>
+      )}
+    </>
+  );
+}
 
-          <div className="field-row">
-            <div>
-              <label className="field-label">Purok</label>
-              <select
-                className="field-input"
-                value={form.purok}
-                onChange={update("purok")}
-              >
-                {PUROKS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </div>
+function ModalShell({ title, titleId, onClose, busy, size, children }) {
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key === "Escape" && !busy) onClose();
+    };
 
-            <div>
-              <label className="field-label">Contact Number</label>
-              <input
-                className="field-input"
-                type="text"
-                value={form.contact}
-                onChange={update("contact")}
-              />
-            </div>
-          </div>
+    document.addEventListener("keydown", handleKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-          <h4>Medical Information</h4>
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [busy, onClose]);
 
-          <div className="field-row">
-            <div>
-              <label className="field-label">Blood Type</label>
-              <input
-                className="field-input"
-                type="text"
-                value={form.bloodType}
-                onChange={update("bloodType")}
-              />
-            </div>
-
-            <div>
-              <label className="field-label">Condition</label>
-              <input
-                className="field-input"
-                type="text"
-                value={form.condition}
-                onChange={update("condition")}
-              />
-            </div>
-          </div>
-
-          <div className="field-row">
-            <div>
-              <label className="field-label">Maintenance</label>
-              <input
-                className="field-input"
-                type="text"
-                value={form.maintenance}
-                onChange={update("maintenance")}
-              />
-            </div>
-
-         
-          </div>
-
-          <h4>Other Information</h4>
-
-          <div className="field-row">
-            <div>
-              <label className="field-label">Civil Status</label>
-             <select
-  className="field-input"
-  value={form.civilStatus ?? ""}
-  onChange={update("civilStatus")}
->
-  <option value="">Select civil status</option>
-  <option value="Single">Single</option>
-  <option value="Married">Married</option>
-  <option value="Widowed">Widowed</option>
-  <option value="Separated">Separated</option>
-  <option value="Divorced">Divorced</option>
-</select>
-            </div>
-
-            <div>
-              <label className="field-label">OSCA ID Status</label>
-              <select
-                className="field-input"
-                value={form.oscaId}
-                onChange={update("oscaId")}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-
-          <label className="field-label">Emergency Contact</label>
-          <input
-            className="field-input"
-            type="text"
-            value={form.emergencyContact}
-            onChange={update("emergencyContact")}
-          />
-
-          <label className="field-label"> Emergency Contact’s Relationship to Senior</label>
-          <input
-            className="field-input"
-            type="text"
-            value={form.relationship}
-            onChange={update("relationship")}
-          />
-
-          <div className="modal-actions">
+  return (
+    <Layer>
+      <div
+        className="rp-overlay"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !busy) onClose();
+        }}
+      >
+        <div
+          className={`rp-modal${size === "lg" ? " lg" : ""}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+        >
+          <div className="rp-modal-header">
+            <h2 id={titleId}>{title}</h2>
             <button
               type="button"
-              className="btn-outline"
+              className="rp-icon-btn"
               onClick={onClose}
+              disabled={busy}
+              aria-label="Close"
             >
-              Cancel
-            </button>
-
-            <button type="submit" className="btn-primary">
-              Save Changes
+              <FiX />
             </button>
           </div>
-        </form>
+          {children}
+        </div>
       </div>
+    </Layer>
+  );
+}
+
+function Field({ label, htmlFor, error, hint, children }) {
+  return (
+    <div className={`rp-field${error ? " has-error" : ""}`}>
+      <label htmlFor={htmlFor}>{label}</label>
+      {children}
+      {error ? (
+        <p className="rp-field-error" id={`${htmlFor}-error`}>
+          <FiAlertCircle aria-hidden="true" />
+          {error}
+        </p>
+      ) : hint ? (
+        <p className="rp-field-hint">{hint}</p>
+      ) : null}
     </div>
   );
 }
 
-function RecordPanel({ record, onClose }) {
-  if (!record) return null;
+/* -------------------------------------------------------------------------- */
+/* Add / edit form                                                            */
+/* -------------------------------------------------------------------------- */
+
+function SeniorFormModal({ record, records, onClose, onSave }) {
+  const isEdit = Boolean(record);
+  const [form, setForm] = useState(() =>
+    record ? recordToForm(record) : EMPTY_FORM
+  );
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const age = computeAge(form.birthDate);
+
+  const setField = (field, value) => {
+    setForm((previous) => ({ ...previous, [field]: value }));
+    setErrors((previous) => ({ ...previous, [field]: undefined }));
+    setFormError("");
+  };
+
+  const update = (field) => (event) => setField(field, event.target.value);
+
+  const submit = async (event) => {
+    event.preventDefault();
+
+    const found = validateForm(form, {
+      records,
+      editingId: isEdit ? record.id : null,
+    });
+
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      await onSave(form);
+    } catch (error) {
+      console.error("Failed to save senior:", error);
+      const fieldErrors = extractFieldErrors(error);
+
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors);
+      } else {
+        setFormError(error.message || "Unable to save this record.");
+      }
+      setSaving(false);
+    }
+  };
+
+  const ariaFor = (field) => ({
+    "aria-invalid": Boolean(errors[field]),
+    "aria-describedby": errors[field] ? `rp-${field}-error` : undefined,
+  });
+
   return (
-    <aside className="record-panel">
-      <button type="button" className="panel-close" onClick={onClose} aria-label="Close">
-        <FiX />
-      </button>
+    <ModalShell
+      title={isEdit ? "Edit senior record" : "Add senior record"}
+      titleId="rp-form-title"
+      onClose={onClose}
+      busy={saving}
+      size="lg"
+    >
+      <form className="rp-form" onSubmit={submit} noValidate>
+        <div className="rp-modal-body">
+          {formError && (
+            <div className="rp-banner" role="alert">
+              <FiAlertCircle aria-hidden="true" />
+              {formError}
+            </div>
+          )}
 
-      <div className="panel-profile">
-        <span className={`panel-avatar ${avatarTone(record.id)}`}>{initials(record.name)}</span>
-        <h3>{record.name}</h3>
-        <span className="panel-id">{record.seniorId}</span>
-      </div>
+          <section className="rp-form-section">
+            <h3>Personal information</h3>
 
-      <div className="info-section">
-        <h4>Personal Information</h4>
-        <div className="info-row"><span>Age</span><strong>{record.age}</strong></div>
-        <div className="info-row">
-        <span>Birth Date</span><strong>
-        {record.birthDate  ? new Date(`${record.birthDate.slice(0, 10)}T00:00:00`) 
-        .toLocaleDateString("en-US", {    month: "long", day: "numeric",  year: "numeric",  
-        }): "Not provided"} </strong></div>
-        <div className="info-row"><span>Gender</span><strong>{record.gender}</strong></div>
-        <div className="info-row"><span>Purok</span><strong>{record.purok}</strong></div>
-        <div className="info-row"><span>Contact</span><strong>{record.contact}</strong></div>
-        <div className="info-row">
-          <span>Status</span>
-          <span className={`badge ${STATUS_BADGE[record.status]}`}>{record.status}</span>
+            <Field label="Full name" htmlFor="rp-name" error={errors.name}>
+              <input
+                id="rp-name"
+                type="text"
+                value={form.name}
+                onChange={update("name")}
+                autoFocus
+                {...ariaFor("name")}
+              />
+            </Field>
+
+            <div className="rp-field-row">
+              <Field
+                label="Birth date"
+                htmlFor="rp-birthDate"
+                error={errors.birthDate}
+              >
+                <input
+                  id="rp-birthDate"
+                  type="date"
+                  max={todayISO()}
+                  value={form.birthDate}
+                  onChange={update("birthDate")}
+                  {...ariaFor("birthDate")}
+                />
+              </Field>
+
+              <Field
+                label="Age"
+                htmlFor="rp-age"
+                hint="Calculated from the birth date."
+              >
+                <input
+                  id="rp-age"
+                  type="text"
+                  value={age === "" ? "" : `${age} years old`}
+                  placeholder="-"
+                  readOnly
+                />
+              </Field>
+            </div>
+
+            <div className="rp-field-row">
+              <Field label="Gender" htmlFor="rp-gender">
+                <select
+                  id="rp-gender"
+                  value={form.gender}
+                  onChange={update("gender")}
+                >
+                  {GENDERS.map((gender) => (
+                    <option key={gender} value={gender}>
+                      {gender}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Purok" htmlFor="rp-purok">
+                <select
+                  id="rp-purok"
+                  value={form.purok}
+                  onChange={update("purok")}
+                >
+                  {PUROKS.map((purok) => (
+                    <option key={purok} value={purok}>
+                      {purok}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <Field
+              label="Contact number"
+              htmlFor="rp-contact"
+              error={errors.contact}
+              hint="Optional. Example: 0917 123 4567"
+            >
+              <input
+                id="rp-contact"
+                type="text"
+                inputMode="numeric"
+                placeholder="09XX XXX XXXX"
+                value={form.contact}
+                onChange={(event) =>
+                  setField("contact", formatContactInput(event.target.value))
+                }
+                {...ariaFor("contact")}
+              />
+            </Field>
+          </section>
+
+          <section className="rp-form-section">
+            <h3>Medical information</h3>
+
+            <div className="rp-field-row">
+              <Field label="Blood type" htmlFor="rp-bloodType">
+                <select
+                  id="rp-bloodType"
+                  value={form.bloodType}
+                  onChange={update("bloodType")}
+                >
+                  <option value="">Unknown</option>
+                  {BLOOD_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Last checkup" htmlFor="rp-lastCheckup">
+                <input
+                  id="rp-lastCheckup"
+                  type="date"
+                  max={todayISO()}
+                  value={form.lastCheckup}
+                  onChange={update("lastCheckup")}
+                />
+              </Field>
+            </div>
+
+            <div className="rp-field-row">
+              <Field label="Condition" htmlFor="rp-condition">
+                <input
+                  id="rp-condition"
+                  type="text"
+                  placeholder="Example: Hypertension"
+                  value={form.condition}
+                  onChange={update("condition")}
+                />
+              </Field>
+
+              <Field label="Maintenance medicine" htmlFor="rp-maintenance">
+                <input
+                  id="rp-maintenance"
+                  type="text"
+                  placeholder="Example: Amlodipine"
+                  value={form.maintenance}
+                  onChange={update("maintenance")}
+                />
+              </Field>
+            </div>
+          </section>
+
+          <section className="rp-form-section">
+            <h3>Other information</h3>
+
+            <div className="rp-field-row">
+              <Field label="Civil status" htmlFor="rp-civilStatus">
+                <select
+                  id="rp-civilStatus"
+                  value={form.civilStatus}
+                  onChange={update("civilStatus")}
+                >
+                  <option value="">Select civil status</option>
+                  {CIVIL_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="OSCA ID status" htmlFor="rp-oscaId">
+                <select
+                  id="rp-oscaId"
+                  value={form.oscaId}
+                  onChange={update("oscaId")}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </Field>
+            </div>
+
+            <div className="rp-field-row">
+              <Field label="Emergency contact" htmlFor="rp-emergencyContact">
+                <input
+                  id="rp-emergencyContact"
+                  type="text"
+                  placeholder="Full name"
+                  value={form.emergencyContact}
+                  onChange={update("emergencyContact")}
+                />
+              </Field>
+
+              <Field
+                label="Relationship to senior"
+                htmlFor="rp-relationship"
+              >
+                <input
+                  id="rp-relationship"
+                  type="text"
+                  placeholder="Example: Daughter"
+                  value={form.relationship}
+                  onChange={update("relationship")}
+                />
+              </Field>
+            </div>
+          </section>
         </div>
-      </div>
 
-      <div className="info-section">
-        <h4>Medical Information</h4>
-        <div className="info-row"><span>Blood Type</span><strong>{record.medical.bloodType}</strong></div>
-        <div className="info-row"><span>Condition</span><strong>{record.medical.condition}</strong></div>
-        <div className="info-row"><span>Maintenance</span><strong>{record.medical.maintenance}</strong></div>
-       
-      </div>
-
-      <div className="info-section">
-        <h4>Other Information</h4>
-        <div className="info-row"><span>Civil Status</span><strong>{record.other.civilStatus}</strong></div>
-        <div className="info-row"><span>Emergency Contact</span><strong>{record.other.emergencyContact}</strong></div>
-        <div className="info-row"><span>Relationship</span><strong>{record.other.relationship}</strong></div>
-        <div className="info-row">
-          <span>OSCA ID</span>
-          <span className={`badge ${record.other.oscaId === "Active" ? "badge-green" : "badge-gray"}`}>
-            {record.other.oscaId}
-          </span>
+        <div className="rp-modal-actions">
+          <button
+            type="button"
+            className="rp-btn rp-btn-secondary"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+          <button type="submit" className="rp-btn rp-btn-primary" disabled={saving}>
+            {saving ? "Saving..." : isEdit ? "Save changes" : "Add senior"}
+          </button>
         </div>
-      </div>
-
-      <button type="button" className="btn-view-full" onClick={() => window.print()}>
-        <FiCheckCircle /> View Full Record
-      </button>
-    </aside>
+      </form>
+    </ModalShell>
   );
 }
 
-/* ---------------------------------------------------------------- */
-/* Main component                                                     */
-/* ---------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Archive + delete dialogs                                                   */
+/* -------------------------------------------------------------------------- */
+
+const ARCHIVE_REASONS = [
+  {
+    value: "Inactive",
+    title: "Inactive",
+    description: "No longer living in the area.",
+  },
+  {
+    value: "Deceased",
+    title: "Deceased",
+    description: "Has passed away.",
+  },
+];
+
+function ArchiveDialog({ record, busy, onConfirm, onClose }) {
+  const [reason, setReason] = useState("Inactive");
+
+  return (
+    <ModalShell
+      title="Archive record"
+      titleId="rp-archive-title"
+      onClose={onClose}
+      busy={busy}
+    >
+      <div className="rp-modal-body">
+        <p className="rp-modal-note">
+          Why are you archiving <strong>{record.name}</strong>? Archived seniors
+          are hidden from the active list and can be restored later.
+        </p>
+
+        <div className="rp-reasons" role="radiogroup" aria-label="Archive reason">
+          {ARCHIVE_REASONS.map((option) => (
+            <label
+              key={option.value}
+              className={`rp-reason${reason === option.value ? " selected" : ""}`}
+            >
+              <input
+                type="radio"
+                name="rp-archive-reason"
+                value={option.value}
+                checked={reason === option.value}
+                onChange={() => setReason(option.value)}
+              />
+              <span className="rp-reason-text">
+                <strong>{option.title}</strong>
+                <small>{option.description}</small>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="rp-modal-actions">
+        <button
+          type="button"
+          className="rp-btn rp-btn-secondary"
+          onClick={onClose}
+          disabled={busy}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="rp-btn rp-btn-primary"
+          onClick={() => onConfirm(reason)}
+          disabled={busy}
+        >
+          {busy ? "Archiving..." : "Archive record"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+function DeleteDialog({ record, busy, onConfirm, onClose }) {
+  return (
+    <ModalShell
+      title="Delete this record?"
+      titleId="rp-delete-title"
+      onClose={onClose}
+      busy={busy}
+    >
+      <div className="rp-modal-body">
+        <p className="rp-modal-note">
+          <strong>{record.name}</strong> ({record.seniorId}) will be removed
+          permanently. This cannot be undone. If the senior has moved away or
+          passed away, archive the record instead so the history is kept.
+        </p>
+      </div>
+
+      <div className="rp-modal-actions">
+        <button
+          type="button"
+          className="rp-btn rp-btn-secondary"
+          onClick={onClose}
+          disabled={busy}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="rp-btn rp-btn-danger"
+          onClick={onConfirm}
+          disabled={busy}
+        >
+          {busy ? "Deleting..." : "Delete record"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Record drawer                                                              */
+/* -------------------------------------------------------------------------- */
+
+function InfoRow({ label, children }) {
+  return (
+    <div className="rp-info-row">
+      <span>{label}</span>
+      <strong>{children || "-"}</strong>
+    </div>
+  );
+}
+
+function RecordDrawer({ record, flags, onClose, onEdit, onArchive, onRestore }) {
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  const updated = formatDateTime(record.lastUpdated);
+
+  return (
+    <Layer>
+      <div className="rp-backdrop" onClick={onClose} />
+      <aside
+        className="rp-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="rp-drawer-title"
+      >
+        <header className="rp-drawer-header">
+          <div className="rp-drawer-profile">
+            <span className={`rp-avatar rp-avatar-lg ${avatarTone(record.id)}`}>
+              {initials(record.name)}
+            </span>
+            <div className="rp-drawer-heading">
+              <h2 id="rp-drawer-title">{record.name}</h2>
+              <span className="rp-muted">{record.seniorId}</span>
+              <span className="rp-muted">
+                Updated {updated.date}
+                {updated.time && ` at ${updated.time}`}
+              </span>
+            </div>
+          </div>
+
+          <div className="rp-drawer-top">
+            <StatusBadge status={record.status} />
+            <button
+              type="button"
+              className="rp-icon-btn"
+              onClick={onClose}
+              aria-label="Close"
+            >
+              <FiX />
+            </button>
+          </div>
+        </header>
+
+        <div className="rp-drawer-body">
+          {flags.length > 0 && (
+            <div className="rp-attention" role="alert">
+              <h3>
+                <FiAlertTriangle aria-hidden="true" />
+                Needs attention
+              </h3>
+              <ul>
+                {flags.map((flag) => (
+                  <li key={flag.key}>
+                    <strong>{flag.label}</strong>
+                    <span>{flag.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <section className="rp-info">
+            <h3>Personal information</h3>
+            <InfoRow label="Age">{record.age}</InfoRow>
+            <InfoRow label="Birth date">{formatLongDate(record.birthDate)}</InfoRow>
+            <InfoRow label="Gender">{record.gender}</InfoRow>
+            <InfoRow label="Purok">{record.purok}</InfoRow>
+            <InfoRow label="Contact">{record.contact}</InfoRow>
+          </section>
+
+          <section className="rp-info">
+            <h3>Medical information</h3>
+            <InfoRow label="Blood type">{record.bloodType}</InfoRow>
+            <InfoRow label="Condition">{record.condition}</InfoRow>
+            <InfoRow label="Maintenance">{record.maintenance}</InfoRow>
+            <InfoRow label="Last checkup">
+              {record.lastCheckup ? formatLongDate(record.lastCheckup) : ""}
+            </InfoRow>
+          </section>
+
+          <section className="rp-info">
+            <h3>Other information</h3>
+            <InfoRow label="Civil status">{record.civilStatus}</InfoRow>
+            <InfoRow label="Emergency contact">{record.emergencyContact}</InfoRow>
+            <InfoRow label="Relationship">{record.relationship}</InfoRow>
+            <div className="rp-info-row">
+              <span>OSCA ID</span>
+              <span
+                className={`rp-pill ${record.oscaId === "Active" ? "green" : "gray"}`}
+              >
+                {record.oscaId}
+              </span>
+            </div>
+          </section>
+        </div>
+
+        <footer className="rp-drawer-footer">
+          {record.isArchived ? (
+            <button
+              type="button"
+              className="rp-btn rp-btn-secondary"
+              onClick={onRestore}
+            >
+              <FiRotateCcw />
+              Restore
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="rp-btn rp-btn-secondary"
+              onClick={onArchive}
+            >
+              <FiArchive />
+              Archive
+            </button>
+          )}
+          <button type="button" className="rp-btn rp-btn-primary" onClick={onEdit}>
+            <FiEdit2 />
+            Edit record
+          </button>
+        </footer>
+      </aside>
+    </Layer>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function Records() {
- 
   const [records, setRecords] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState([]);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedId, setSelectedId] = useState(null);
-  const [kebabOpenId, setKebabOpenId] = useState(null);
-  const [archiveRecord, setArchiveRecord] = useState(null);
-  const [kebabPosition, setKebabPosition] = useState({
-  top: 0,
-  left: 0,
-});
-  const [addModalOpen, setAddModalOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const filterRef = useOutsideClose(() => setFilterOpen(false));
-  const kebabRef = useOutsideClose(() => setKebabOpenId(null));
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("All");
+  const [purokFilter, setPurokFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("updated");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const [selectedId, setSelectedId] = useState(null);
+  const [formModal, setFormModal] = useState(null);
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const [toasts, setToasts] = useState([]);
+  const toastTimers = useRef(new Map());
+
+  // Clear any pending toast timers when leaving the page.
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
+
+  /* ------------------------------ Data loading ----------------------------- */
 
   useEffect(() => {
-  getSeniorCitizens()
-    .then((data) => {
-      console.log("Laravel senior citizens:", data);
+    let cancelled = false;
 
-      const formattedRecords = data.map((r) => ({
-        id: r.id,
-        seniorId: r.senior_id,
-         name: r.name,
-         age: r.age,
-        birthDate: r.birth_date? String(r.birth_date).slice(0, 10): "",
-        gender: r.gender,
-        purok: r.purok,
-        contact: r.contact || "",
-        status: r.status,
-        lastUpdated: new Date(r.updated_at),
-        subNote: "Updated from database",
+    setLoading(true);
+    setLoadError("");
 
-        medical: {
-          bloodType: r.blood_type || "-",
-          condition: r.condition || "None noted",
-          maintenance: r.maintenance || "None",
-          lastCheckup: r.last_checkup || "-",
-        },
+    getSeniorCitizens()
+      .then((data) => {
+        if (cancelled) return;
+        const rows = Array.isArray(data) ? data : data?.data || [];
+        setRecords(rows.map(buildRecord));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load senior citizens:", error);
+        setLoadError(error.message || "Failed to load records.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-        other: {
-          civilStatus: r.civil_status || "-",
-          emergencyContact: r.emergency_contact || "-",
-          relationship: r.relationship || "-",
-          oscaId: r.osca_id || "Active",
-        },
-      }));
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
-      console.log("Formatted records:", formattedRecords);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, activeTab, purokFilter, sortBy]);
 
-      setRecords(formattedRecords);
-    })
-    .catch((error) => {
-      console.error("Failed to load senior citizens:", error);
+  /* ------------------------------ Derived data ----------------------------- */
+
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map();
+
+    records.forEach((record) => {
+      const key = duplicateKey(record.name, record.birthDate);
+      if (!key) return;
+      groups.set(key, [...(groups.get(key) || []), record]);
     });
-}, []);
 
-useEffect(() => {
-  setCurrentPage(1);
-}, [searchQuery, statusFilter]);
+    return groups;
+  }, [records]);
 
+  const flagsById = useMemo(() => {
+    const map = new Map();
+    records.forEach((record) => map.set(record.id, getFlags(record, duplicateGroups)));
+    return map;
+  }, [records, duplicateGroups]);
 
-  const stats = useMemo(
+  const counts = useMemo(
     () => ({
-      total: records.length,
-      healthAlert: records.filter((r) => r.status === "Needs follow-up").length,
-      needsAttention: records.filter((r) => r.status === "Needs attention").length,
-      archived: records.filter((r) => r.status === "Archived").length,
+      All: records.length,
+      Active: records.filter((r) => r.status === "Active").length,
+      Pending: records.filter((r) => r.status === "Pending").length,
+      "Needs attention": records.filter(
+        (r) => (flagsById.get(r.id) || []).length > 0
+      ).length,
+      Archived: records.filter((r) => r.isArchived).length,
     }),
-    [records]
+    [records, flagsById]
   );
 
-const tabCounts = useMemo(() => {
-  const counts = { All: records.length };
-
-  STATUSES.forEach((status) => {
-    counts[status] = records.filter((record) =>
-      status === "Archived"
-        ? ["Archived", "Inactive", "Deceased"].includes(record.status)
-        : record.status === status
-    ).length;
-  });
-console.table(
-  records.map((record) => ({
-    id: record.id,
-    status: JSON.stringify(record.status),
-  }))
-);
-
-  return counts;
-}, [records]);
-
-  const activeTab = statusFilter.length === 1 ? statusFilter[0] : "All";
-
-  const selectTab = (key) => {
-    setStatusFilter(key === "All" ? [] : [key]);
-  };
-
   const filtered = useMemo(() => {
-  let list = records;
+    const query = search.trim().toLowerCase();
+    const queryDigits = query.replace(/\D/g, "");
 
-  if (statusFilter.length > 0) {
-    list = list.filter((r) =>
-      statusFilter.includes(r.status) ||
-      (
-        statusFilter.includes("Archived") &&
-        ["Inactive", "Deceased"].includes(r.status)
-      )
-    );
-  }
+    const rows = records.filter((record) => {
+      if (activeTab === "Active" && record.status !== "Active") return false;
+      if (activeTab === "Pending" && record.status !== "Pending") return false;
+      if (activeTab === "Archived" && !record.isArchived) return false;
+      if (
+        activeTab === "Needs attention" &&
+        (flagsById.get(record.id) || []).length === 0
+      ) {
+        return false;
+      }
 
-  if (searchQuery.trim()) {
-    const q = searchQuery.trim().toLowerCase();
+      if (purokFilter !== "All" && record.purok !== purokFilter) return false;
 
-    list = list.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.seniorId.toLowerCase().includes(q)
-    );
-  }
+      if (!query) return true;
 
-  return list;
-}, [records, searchQuery, statusFilter]);
+      return (
+        record.name.toLowerCase().includes(query) ||
+        record.seniorId.toLowerCase().includes(query) ||
+        (queryDigits.length >= 3 &&
+          record.contact.replace(/\D/g, "").includes(queryDigits))
+      );
+    });
+
+    return [...rows].sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      }
+
+      if (sortBy === "age") {
+        return (Number(b.age) || 0) - (Number(a.age) || 0);
+      }
+
+      return (b.lastUpdated?.getTime() || 0) - (a.lastUpdated?.getTime() || 0);
+    });
+  }, [records, flagsById, activeTab, purokFilter, search, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(currentPage, totalPages);
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
-  const selectedRecord = records.find((r) => r.id === selectedId) || null;
+  const selectedRecord =
+    records.find((record) => record.id === selectedId) || null;
 
-  const toggleStatusFilter = (s) => {
-    setStatusFilter((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  const hasFilters =
+    Boolean(search.trim()) || activeTab !== "All" || purokFilter !== "All";
+
+  const showTable = loading || (!loadError && filtered.length > 0);
+
+  /* -------------------------------- Toasts --------------------------------- */
+
+  const dismissToast = (id) => {
+    clearTimeout(toastTimers.current.get(id));
+    toastTimers.current.delete(id);
+    setToasts((previous) => previous.filter((toast) => toast.id !== id));
   };
 
- const toggleArchive = async (id) => {
-  const record = records.find((r) => r.id === id);
-  if (!record) return;
-
-  setKebabOpenId(null);
-
-  const isArchived = ["Archived", "Inactive", "Deceased"].includes(
-    record.status
-  );
-
-  if (!isArchived) {
-    setArchiveRecord(record);
-    return;
-  }
-
-  try {
-    const updated = await updateSeniorCitizen(id, {
-      status: "Active",
-    });
-
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              status: updated.status,
-              lastUpdated: new Date(updated.updated_at),
-            }
-          : r
-      )
+  const pushToast = (message, type = "success") => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((previous) => [...previous, { id, message, type }]);
+    toastTimers.current.set(
+      id,
+      setTimeout(() => dismissToast(id), TOAST_DURATION)
     );
-  } catch (error) {
-    console.error("Failed to restore senior:", error);
-    alert("Unable to restore senior citizen.");
-  }
-};
+  };
 
-const saveArchiveStatus = async (status) => {
-  if (!archiveRecord) return;
+  /* -------------------------------- Actions -------------------------------- */
 
-  try {
-    const updated = await updateSeniorCitizen(archiveRecord.id, {
-      status,
-    });
+  const clearFilters = () => {
+    setSearch("");
+    setActiveTab("All");
+    setPurokFilter("All");
+  };
 
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === archiveRecord.id
-          ? {
-              ...r,
-              status: updated.status,
-              lastUpdated: new Date(updated.updated_at),
-            }
-          : r
-      )
-    );
+  const closeDrawer = useCallback(() => setSelectedId(null), []);
 
-    setArchiveRecord(null);
-  } catch (error) {
-    console.error("Failed to archive senior:", error);
-    alert("Unable to archive senior citizen.");
-  }
-};
+  // Throws on failure so the form can show the error next to its fields.
+  const saveSenior = async (form) => {
+    const payload = formToPayload(form);
 
-  const deleteRecord = async (id) => {
-  if (!window.confirm("Delete this senior record? This cannot be undone.")) {
-    setKebabOpenId(null);
-    return;
-  }
+    if (formModal?.record) {
+      const updated = await updateSeniorCitizen(formModal.record.id, payload);
+      const next = buildRecord(updated);
 
-  try {
-    await deleteSeniorCitizen(id);
+      setRecords((previous) =>
+        previous.map((record) => (record.id === next.id ? next : record))
+      );
+      pushToast(`${next.name}'s record was saved.`);
+    } else {
+      const created = await createSeniorCitizen(payload);
+      const next = buildRecord(created);
 
-    setRecords((prev) => prev.filter((r) => r.id !== id));
-
-    if (selectedId === id) {
-      setSelectedId(null);
+      setRecords((previous) => [next, ...previous]);
+      // Make sure the new record is visible at the top of the list.
+      setSearch("");
+      setActiveTab("All");
+      setPurokFilter("All");
+      setSortBy("updated");
+      setCurrentPage(1);
+      pushToast(`${next.name} was added.`);
     }
-  } catch (error) {
-    console.error("Failed to delete senior:", error);
-    alert("Unable to delete senior citizen.");
-  }
 
-  setKebabOpenId(null);
-};
+    setFormModal(null);
+  };
 
- const handleAddSenior = async (form) => {
-  try {
-    const created = await createSeniorCitizen({
-      name: form.name,
-      age: Number(form.age),
-      birth_date: form.birthDate || null,
-      gender: form.gender,
-      purok: form.purok,
-      contact: form.contact,
+  const changeStatus = async (record, status, message) => {
+    setBusy(true);
 
-      blood_type: form.bloodType || null,
-      condition: form.condition || null,
-      maintenance: form.maintenance || null,
-      
+    try {
+      const updated = await updateSeniorCitizen(record.id, { status });
+      const next = buildRecord(updated);
 
-      civil_status: form.civilStatus || null,
-      emergency_contact: form.emergencyContact || null,
-      relationship: form.relationship || null,
-      osca_id: form.oscaId || "Active",
-    });
-    
-    const newRecord = {
-      id: created.id,
-      seniorId: created.senior_id,
-      name: created.name,
-      age: created.age,
-      birthDate: created.birth_date
-  ? String(created.birth_date).slice(0, 10)
-  : "",
-      gender: created.gender,
-      purok: created.purok,
-      contact: created.contact || "",
-      status: created.status,
-      lastUpdated: new Date(created.updated_at),
-      subNote: "Updated from database",
+      setRecords((previous) =>
+        previous.map((item) => (item.id === next.id ? next : item))
+      );
+      pushToast(message);
+      return true;
+    } catch (error) {
+      console.error("Failed to change status:", error);
+      pushToast(
+        error.message || "Unable to update this record. Please try again.",
+        "error"
+      );
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
 
-      medical: {
-        bloodType: created.blood_type || "-",
-        condition: created.condition || "None noted",
-        maintenance: created.maintenance || "None",
-        lastCheckup: created.last_checkup || "-",
-      },
+  const confirmArchive = async (status) => {
+    if (!archiveTarget) return;
 
-      other: {
-        civilStatus: created.civil_status || "-",
-        emergencyContact: created.emergency_contact || "-",
-        relationship: created.relationship || "-",
-        oscaId: created.osca_id || "Active",
-      },
-    };
-
-    setRecords((prev) => [newRecord, ...prev]);
-    setAddModalOpen(false);
-  } catch (error) {
-    console.error("Failed to add senior:", error);
-    alert("Unable to add senior citizen.");
-  }
-};
-
-const handleEditSenior = async (id, form) => {
-  try {
-    const updated = await updateSeniorCitizen(id, {
-      name: form.name,
-      age: Number(form.age),
-      birth_date: form.birthDate || null,
-      gender: form.gender,
-      purok: form.purok,
-      contact: form.contact,
-
-      blood_type: form.bloodType || null,
-      condition: form.condition || null,
-      maintenance: form.maintenance || null,
-      last_checkup: form.lastCheckup || null,
-
-      civil_status: form.civilStatus || null,
-      emergency_contact: form.emergencyContact || null,
-      relationship: form.relationship || null,
-      osca_id: form.oscaId,
-    });
-
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              name: updated.name,
-              age: updated.age,
-              birthDate: updated.birth_date? String(updated.birth_date).slice(0, 10): "",
-              gender: updated.gender,
-              purok: updated.purok,
-              contact: updated.contact || "",
-              status: updated.status,
-              lastUpdated: new Date(updated.updated_at),
-
-              medical: {
-                bloodType: updated.blood_type || "-",
-                condition: updated.condition || "None noted",
-                maintenance: updated.maintenance || "None",
-                lastCheckup: updated.last_checkup || "-",
-              },
-
-              other: {
-                civilStatus: updated.civil_status || "-",
-                emergencyContact: updated.emergency_contact || "-",
-                relationship: updated.relationship || "-",
-                oscaId: updated.osca_id || "Active",
-              },
-            }
-          : r
-      )
+    const saved = await changeStatus(
+      archiveTarget,
+      status,
+      `${archiveTarget.name} was archived as ${status.toLowerCase()}.`
     );
 
-    setEditingRecord(null);
-  } catch (error) {
-    console.error("Failed to edit senior:", error);
-    alert("Unable to update senior citizen.");
-  }
-};
+    if (saved) setArchiveTarget(null);
+  };
+
+  const restoreRecord = (record) =>
+    changeStatus(record, "Active", `${record.name} was restored.`);
+
+  const clearFollowUp = (record) =>
+    changeStatus(record, "Active", `Follow-up mark cleared for ${record.name}.`);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    setBusy(true);
+
+    try {
+      await deleteSeniorCitizen(deleteTarget.id);
+
+      setRecords((previous) =>
+        previous.filter((record) => record.id !== deleteTarget.id)
+      );
+      if (selectedId === deleteTarget.id) setSelectedId(null);
+      pushToast(`${deleteTarget.name}'s record was deleted.`);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error("Failed to delete senior:", error);
+      pushToast(
+        error.message || "Unable to delete this record. Please try again.",
+        "error"
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const menuItemsFor = (record) => {
+    const items = [
+      {
+        key: "view",
+        label: "View details",
+        icon: <FiEye />,
+        onClick: () => setSelectedId(record.id),
+      },
+      {
+        key: "edit",
+        label: "Edit record",
+        icon: <FiEdit2 />,
+        onClick: () => setFormModal({ record }),
+      },
+    ];
+
+    if (record.legacyFlag) {
+      items.push({
+        key: "resolve",
+        label: "Clear follow-up mark",
+        icon: <FiCheckCircle />,
+        onClick: () => clearFollowUp(record),
+      });
+    }
+
+    items.push(
+      record.isArchived
+        ? {
+            key: "restore",
+            label: "Restore",
+            icon: <FiRotateCcw />,
+            onClick: () => restoreRecord(record),
+          }
+        : {
+            key: "archive",
+            label: "Archive",
+            icon: <FiArchive />,
+            onClick: () => setArchiveTarget(record),
+          },
+      { key: "divider", divider: true },
+      {
+        key: "delete",
+        label: "Delete record",
+        icon: <FiTrash2 />,
+        tone: "danger",
+        onClick: () => setDeleteTarget(record),
+      }
+    );
+
+    return items;
+  };
+
+  /* -------------------------------- Render --------------------------------- */
+
+  const statCards = [
+    {
+      key: "All",
+      label: "Total seniors",
+      note: "All registered",
+      value: counts.All,
+      tone: "green",
+      icon: <FiUsers />,
+    },
+    {
+      key: "Active",
+      label: "Active",
+      note: "Receiving services",
+      value: counts.Active,
+      tone: "blue",
+      icon: <FiUserCheck />,
+    },
+    {
+      key: "Needs attention",
+      label: "Needs attention",
+      note: "Details to fix or confirm",
+      value: counts["Needs attention"],
+      tone: "amber",
+      icon: <FiAlertCircle />,
+    },
+    {
+      key: "Archived",
+      label: "Archived",
+      note: "Inactive or deceased",
+      value: counts.Archived,
+      tone: "gray",
+      icon: <FiArchive />,
+    },
+  ];
 
   const pageNumbers = useMemo(() => {
-    const pages = [];
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-    if (pages.length <= 6) return pages;
-    const set = new Set([1, 2, totalPages - 1, totalPages, page - 1, page, page + 1]);
-    const trimmed = [...set].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
-    const withDots = [];
-    trimmed.forEach((p, idx) => {
-      if (idx > 0 && p - trimmed[idx - 1] > 1) withDots.push("...");
-      withDots.push(p);
+    if (totalPages <= 6) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const wanted = new Set([1, 2, totalPages - 1, totalPages, page - 1, page, page + 1]);
+    const sorted = [...wanted]
+      .filter((number) => number >= 1 && number <= totalPages)
+      .sort((a, b) => a - b);
+
+    const result = [];
+    sorted.forEach((number, index) => {
+      if (index > 0 && number - sorted[index - 1] > 1) result.push("...");
+      result.push(number);
     });
-    return withDots;
+
+    return result;
   }, [totalPages, page]);
 
   return (
-    <div className={`records-page${selectedRecord ? " with-panel" : ""}`}>
-      <div className="records-main">
-        <div className="records-heading">
+    <div className="records-page">
+      {/* Heading */}
+      <header className="rp-heading">
+        <div className="rp-title-row">
+          <span className="rp-title-icon">
+            <FiUsers />
+          </span>
           <div>
             <h1>Records</h1>
             <p>View, manage and organize all senior citizen records.</p>
           </div>
-
-          <div className="heading-controls">
-            <button type="button" className="btn-outline" onClick={() => downloadCSV("senior-records.csv", filtered)}>
-              <FiDownload /> Export
-            </button>
-            <button type="button" className="btn-primary" onClick={() => setAddModalOpen(true)}>
-              <FiPlus /> Add New Record
-            </button>
-          </div>
         </div>
 
-        {/* Stat cards */}
-        <div className="records-stats">
-          <div className="stat-card">
-            <span className="stat-icon tone-green"><FiUsers /></span>
-            <div className="stat-body">
-              <span className="stat-value">{stats.total}</span>
-              <span className="stat-label">Total Seniors</span>
-              <span className="stat-sublabel">All registered</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon tone-amber"><FiHeart /></span>
-            <div className="stat-body">
-              <span className="stat-value">{stats.healthAlert}</span>
-              <span className="stat-label">Health Alert</span>
-              <span className="stat-sublabel">Needs follow-up</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon tone-red"><FiAlertCircle /></span>
-            <div className="stat-body">
-              <span className="stat-value">{stats.needsAttention}</span>
-              <span className="stat-label">Needs Attention</span>
-              <span className="stat-sublabel">High Priority</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon tone-blue"><FiArchive /></span>
-            <div className="stat-body">
-           <span className="stat-value">{tabCounts.Archived ?? 0}</span>
-              <span className="stat-label">Archived</span>
-              <span className="stat-sublabel">Inactive / Deceased</span>
-            </div>
-          </div>
+        <div className="rp-heading-actions">
+          <button
+            type="button"
+            className="rp-btn rp-btn-secondary"
+            onClick={() =>
+              downloadCSV(
+                `senior-records-${todayISO()}.csv`,
+                filtered,
+                flagsById
+              )
+            }
+            disabled={filtered.length === 0}
+          >
+            <FiDownload />
+            Export
+          </button>
+          <button
+            type="button"
+            className="rp-btn rp-btn-primary"
+            onClick={() => setFormModal({ record: null })}
+          >
+            <FiPlus />
+            Add senior
+          </button>
+        </div>
+      </header>
+
+      {/* Summary cards double as quick filters */}
+      <div className="rp-stats">
+        {statCards.map((card) => (
+          <button
+            key={card.key}
+            type="button"
+            className={`rp-stat${activeTab === card.key ? " active" : ""}`}
+            onClick={() => setActiveTab(card.key)}
+            aria-pressed={activeTab === card.key}
+            title={`Show ${card.label.toLowerCase()}`}
+          >
+            <span className={`rp-stat-icon ${card.tone}`}>{card.icon}</span>
+            <span className="rp-stat-text">
+              <strong>{loading ? "–" : card.value}</strong>
+              <span>{card.label}</span>
+              <small>{card.note}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Table panel */}
+      <section className="rp-panel">
+        <div className="rp-tabs" role="tablist" aria-label="Filter by status">
+          {TABS.map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === name}
+              className={`rp-tab${activeTab === name ? " active" : ""}`}
+              onClick={() => setActiveTab(name)}
+            >
+              {name}
+              <span className="rp-tab-count">{loading ? "–" : counts[name]}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Search + filter */}
-        <div className="search-filter-row">
-          <div className="search-box">
-            <FiSearch />
+        <div className="rp-toolbar">
+          <div className="rp-search">
+            <FiSearch aria-hidden="true" />
             <input
               type="text"
-              placeholder="Search by name or ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, ID or contact number"
+              aria-label="Search records"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             />
-          </div>
-
-          <div className="filter-wrap" ref={filterRef}>
-            <button type="button" className="btn-outline" onClick={() => setFilterOpen((o) => !o)}>
-              <FiFilter /> Filter
-              <FiChevronDown className={`chevron${filterOpen ? " open" : ""}`} />
-            </button>
-            {filterOpen && (
-              <div className="dropdown-menu filter-menu">
-                <span className="dropdown-heading">Status</span>
-                {STATUSES.map((s) => (
-                  <label className="checkbox-option" key={s}>
-                    <input type="checkbox" checked={statusFilter.includes(s)} onChange={() => toggleStatusFilter(s)} />
-                    {s}
-                  </label>
-                ))}
-                {statusFilter.length > 0 && (
-                  <button type="button" className="dropdown-clear" onClick={() => setStatusFilter([])}>
-                    Clear filters
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Status tabs */}
-        <div className="records-tabs">
-          <div className="tabs-list">
-            {["All", ...STATUSES].map((key) => (
+            {search && (
               <button
                 type="button"
-                key={key}
-                className={`tab-item${activeTab === key ? " active" : ""}`}
-                onClick={() => selectTab(key)}
+                className="rp-search-clear"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
               >
-                {key} <span className="tab-count">({tabCounts[key] ?? 0})</span>
+                <FiX />
               </button>
-            ))}
+            )}
           </div>
+
+          <select
+            aria-label="Filter by purok"
+            value={purokFilter}
+            onChange={(event) => setPurokFilter(event.target.value)}
+          >
+            <option value="All">All puroks</option>
+            {PUROKS.map((purok) => (
+              <option key={purok} value={purok}>
+                {purok}
+              </option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Sort records"
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          {hasFilters && (
+            <button
+              type="button"
+              className="rp-btn rp-btn-ghost rp-btn-sm"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
+        {/* Error state */}
+        {!loading && loadError && (
+          <div className="rp-state" role="alert">
+            <span className="rp-state-icon error">
+              <FiAlertCircle />
+            </span>
+            <h3>Records could not be loaded</h3>
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className="rp-btn rp-btn-secondary"
+              onClick={() => setReloadKey((key) => key + 1)}
+            >
+              <FiRefreshCw />
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* Empty states */}
+        {!loading && !loadError && filtered.length === 0 && (
+          <div className="rp-state">
+            <span className="rp-state-icon">
+              <FiInbox />
+            </span>
+            {records.length === 0 ? (
+              <>
+                <h3>No records yet</h3>
+                <p>Add the first senior to start building the registry.</p>
+                <button
+                  type="button"
+                  className="rp-btn rp-btn-primary"
+                  onClick={() => setFormModal({ record: null })}
+                >
+                  <FiPlus />
+                  Add senior
+                </button>
+              </>
+            ) : activeTab === "Needs attention" && !hasFilters ? (
+              <>
+                <h3>Nothing needs attention</h3>
+                <p>Every active record has complete, up-to-date details.</p>
+              </>
+            ) : (
+              <>
+                <h3>No matching records</h3>
+                <p>Try a different search or clear the filters.</p>
+                <button
+                  type="button"
+                  className="rp-btn rp-btn-secondary"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Table */}
-        <div className="records-table-card">
-          <div className="table-scroll">
-            <table className="records-table">
+        {showTable && (
+          <div className="rp-table-wrap">
+            <table className="rp-table">
               <thead>
                 <tr>
-                  <th>Name</th>
+                  <th>Senior</th>
                   <th>Age</th>
                   <th>Purok</th>
                   <th>Status</th>
-                  <th>Last Updated</th>
-                  <th>Action</th>
+                  <th className="rp-col-hide-md">Needs attention</th>
+                  <th className="rp-col-hide-sm">Last updated</th>
+                  <th className="rp-actions-head">Action</th>
                 </tr>
               </thead>
+
               <tbody>
-                {paginated.map((r) => {
-                  const { date, time } = formatDateTime(r.lastUpdated);
-                  return (
-                    <tr key={r.id} className={selectedId === r.id ? "row-selected" : ""}>
+                {loading &&
+                  SKELETON_ROWS.map((row) => (
+                    <tr key={row} aria-hidden="true">
                       <td>
-                        <div className="name-cell">
-                          <span className={`status-dot ${STATUS_DOT[r.status]}`} />
-                          <span className={`row-avatar ${avatarTone(r.id)}`}>{initials(r.name)}</span>
-                          <div>
-                            <span className="row-name">{r.name}</span>
-                            <span className="row-id">{r.seniorId}</span>
-                            <span className="row-subnote">{r.subNote}</span>
-                          </div>
+                        <div className="rp-senior">
+                          <span className="rp-skeleton rp-skeleton-avatar" />
+                          <span className="rp-skeleton rp-skeleton-line" />
                         </div>
                       </td>
-                      <td>{r.age}</td>
-                      <td>{r.purok}</td>
                       <td>
-                        <span className={`badge ${STATUS_BADGE[r.status]}`}>{r.status}</span>
+                        <span className="rp-skeleton rp-skeleton-line short" />
                       </td>
                       <td>
-                        <span className="row-date">{date}</span>
-                        <span className="row-time">{time}</span>
+                        <span className="rp-skeleton rp-skeleton-line short" />
                       </td>
                       <td>
-                        <div className="action-cell">
-                          <button type="button" className="btn-view" onClick={() => setSelectedId(r.id)}>
-                            View
-                          </button>
-                          <div className="kebab-wrap" ref={kebabOpenId === r.id ? kebabRef : null}>
-                           <button
-                       type="button"
-                    className="icon-btn"
-                   onClick={(event) => {
-                 const rect = event.currentTarget.getBoundingClientRect();
-
-                       setKebabPosition({
-                      top: rect.bottom + 6,
-                  left: Math.max(8, Math.min(rect.right - 190, window.innerWidth - 198)),
-                           });
-
-                    setKebabOpenId((cur) => (cur === r.id ? null : r.id));
-                     }}
-                 aria-label="More actions"
-                   aria-expanded={kebabOpenId === r.id}
-                    >
-                                <FiMoreVertical />
-                            </button>
-                           {kebabOpenId === r.id &&
-                  createPortal(
-                    <div className="records-page" style={{ display: "contents" }}>
-                       <div
-        className="dropdown-menu kebab-menu"
-        style={{
-          position: "fixed",
-          top: Math.max(
-            8,
-            Math.min(kebabPosition.top, window.innerHeight - 248)
-          ),
-          left: kebabPosition.left,
-          right: "auto",
-          width: 190,
-          maxHeight: "calc(100dvh - 16px)",
-          overflowY: "auto",
-          zIndex: 2000,
-        }}
-        onMouseDown={(event) => event.stopPropagation()}
-        onTouchStart={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") setKebabOpenId(null);
-        }}
-      >
-        <button
-          type="button"
-          className="dropdown-item"
-          onClick={() => {
-            setEditingRecord(r);
-            setKebabOpenId(null);
-          }}
-        >
-          Edit Record
-        </button>
-
-       <button
-  type="button"
-  className="dropdown-item"
-  onClick={() => toggleArchive(r.id)}
->
-  {["Archived", "Inactive", "Deceased"].includes(r.status)
-    ? "Unarchive"
-    : "Archive"}
-</button>
-       
-      </div>
-    </div>,
-    document.body
-  )}
-                          </div>
-                        </div>
+                        <span className="rp-skeleton rp-skeleton-pill" />
                       </td>
+                      <td className="rp-col-hide-md">
+                        <span className="rp-skeleton rp-skeleton-line" />
+                      </td>
+                      <td className="rp-col-hide-sm">
+                        <span className="rp-skeleton rp-skeleton-line" />
+                      </td>
+                      <td />
                     </tr>
-                  );
-                })}
-                {paginated.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="empty-row">No records match your search or filters.</td>
-                  </tr>
-                )}
+                  ))}
+
+                {!loading &&
+                  pageRows.map((record) => {
+                    const updated = formatDateTime(record.lastUpdated);
+
+                    return (
+                      <tr
+                        key={record.id}
+                        className={`${record.isArchived ? "is-archived" : ""}${
+                          selectedId === record.id ? " selected" : ""
+                        }`}
+                      >
+                        <td>
+                          <button
+                            type="button"
+                            className="rp-senior rp-senior-link"
+                            onClick={() => setSelectedId(record.id)}
+                            title="View details"
+                          >
+                            <span className={`rp-avatar ${avatarTone(record.id)}`}>
+                              {initials(record.name)}
+                            </span>
+                            <span className="rp-senior-text">
+                              <strong>{record.name}</strong>
+                              <small>{record.seniorId}</small>
+                            </span>
+                          </button>
+                        </td>
+                        <td>{record.age === "" ? "-" : record.age}</td>
+                        <td>{record.purok || "-"}</td>
+                        <td>
+                          <StatusBadge status={record.status} />
+                        </td>
+                        <td className="rp-col-hide-md">
+                          <AttentionCell flags={flagsById.get(record.id) || []} />
+                        </td>
+                        <td className="rp-col-hide-sm">
+                          <span className="rp-date">{updated.date}</span>
+                          <span className="rp-time">{updated.time}</span>
+                        </td>
+                        <td>
+                          <div className="rp-actions">
+                            <button
+                              type="button"
+                              className="rp-btn rp-btn-secondary rp-btn-sm"
+                              onClick={() => setSelectedId(record.id)}
+                            >
+                              View
+                            </button>
+
+                            <RowMenu
+                              label={`More actions for ${record.name}`}
+                              items={menuItemsFor(record)}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
+        )}
 
-          <div className="records-pagination">
-            <span className="pagination-summary">
-              Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to{" "}
-              {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} records
+        {/* Footer: count + pagination */}
+        {!loading && !loadError && filtered.length > 0 && (
+          <div className="rp-footer">
+            <span className="rp-muted">
+              Showing {pageStart + 1} to{" "}
+              {Math.min(pageStart + PAGE_SIZE, filtered.length)} of{" "}
+              {filtered.length} {filtered.length === 1 ? "record" : "records"}
             </span>
-            <div className="pagination-controls">
-              <button type="button" className="page-btn" disabled={page === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>
-                <FiChevronLeft />
-              </button>
-              {pageNumbers.map((p, idx) =>
-                p === "..." ? (
-                  <span key={`dots-${idx}`} className="page-dots">...</span>
-                ) : (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`page-btn${p === page ? " active" : ""}`}
-                    onClick={() => setCurrentPage(p)}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-              <button type="button" className="page-btn" disabled={page === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>
-                <FiChevronRight />
+
+            {totalPages > 1 && (
+              <div className="rp-pagination">
+                <button
+                  type="button"
+                  className="rp-page-btn"
+                  onClick={() => setCurrentPage(page - 1)}
+                  disabled={page === 1}
+                  aria-label="Previous page"
+                >
+                  <FiChevronLeft />
+                </button>
+
+                {pageNumbers.map((number, index) =>
+                  number === "..." ? (
+                    <span key={`dots-${index}`} className="rp-page-dots">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={number}
+                      type="button"
+                      className={`rp-page-btn${number === page ? " active" : ""}`}
+                      onClick={() => setCurrentPage(number)}
+                      aria-current={number === page ? "page" : undefined}
+                    >
+                      {number}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  className="rp-page-btn"
+                  onClick={() => setCurrentPage(page + 1)}
+                  disabled={page === totalPages}
+                  aria-label="Next page"
+                >
+                  <FiChevronRight />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Record drawer */}
+      {selectedRecord && (
+        <RecordDrawer
+          record={selectedRecord}
+          flags={flagsById.get(selectedRecord.id) || []}
+          onClose={closeDrawer}
+          onEdit={() => {
+            setFormModal({ record: selectedRecord });
+            setSelectedId(null);
+          }}
+          onArchive={() => {
+            setArchiveTarget(selectedRecord);
+            setSelectedId(null);
+          }}
+          onRestore={async () => {
+            const saved = await restoreRecord(selectedRecord);
+            if (saved) setSelectedId(null);
+          }}
+        />
+      )}
+
+      {/* Add / edit */}
+      {formModal && (
+        <SeniorFormModal
+          record={formModal.record}
+          records={records}
+          onClose={() => setFormModal(null)}
+          onSave={saveSenior}
+        />
+      )}
+
+      {/* Archive */}
+      {archiveTarget && (
+        <ArchiveDialog
+          record={archiveTarget}
+          busy={busy}
+          onConfirm={confirmArchive}
+          onClose={() => setArchiveTarget(null)}
+        />
+      )}
+
+      {/* Delete */}
+      {deleteTarget && (
+        <DeleteDialog
+          record={deleteTarget}
+          busy={busy}
+          onConfirm={confirmDelete}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Toasts */}
+      <Layer>
+        <div className="rp-toasts" role="status" aria-live="polite">
+          {toasts.map((toast) => (
+            <div key={toast.id} className={`rp-toast ${toast.type}`}>
+              {toast.type === "error" ? <FiAlertCircle /> : <FiCheckCircle />}
+              <span>{toast.message}</span>
+              <button
+                type="button"
+                onClick={() => dismissToast(toast.id)}
+                aria-label="Dismiss"
+              >
+                <FiX />
               </button>
             </div>
-          </div>
+          ))}
         </div>
-
-      </div>
-
-   {selectedRecord &&
-  createPortal(
-    <div className="records-page record-view-overlay">
-      <RecordPanel
-        record={selectedRecord}
-        onClose={() => setSelectedId(null)}
-      />
-    </div>,
-    document.body
-  )}
-  {archiveRecord && createPortal(
-  <div
-   className="records-page modal-overlay archive-overlay"
-    onMouseDown={() => setArchiveRecord(null)}
-  >
-    <div
-      className="modal-card"
-      style={{ width: "100%", maxWidth: 420 }}
-      onMouseDown={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="archive-title"
-    >
-      <div className="modal-header">
-        <h3 id="archive-title">Archive Record</h3>
-        <button
-          type="button"
-          className="modal-close"
-          onClick={() => setArchiveRecord(null)}
-          aria-label="Close"
-        >
-          <FiX />
-        </button>
-      </div>
-
-      <div className="modal-form">
-        <p>Why are you archiving {archiveRecord.name}?</p>
-
-        <button
-          type="button"
-          className="btn-outline"
-          onClick={() => saveArchiveStatus("Inactive")}
-        >
-          Inactive — no longer living in the area
-        </button>
-
-        <button
-          type="button"
-          className="btn-outline"
-          onClick={() => saveArchiveStatus("Deceased")}
-        >
-          Deceased — has passed away
-        </button>
-
-        <div className="modal-actions">
-          <button
-            type="button"
-            className="btn-outline"
-            onClick={() => setArchiveRecord(null)}
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>,
-  document.body
-)}
-      {addModalOpen && <AddSeniorModal onClose={() => setAddModalOpen(false)} onSave={handleAddSenior} />}
-        {editingRecord && <EditSeniorModal record={editingRecord} onClose={() => setEditingRecord(null)} onSave={handleEditSenior}/>}
+      </Layer>
     </div>
   );
 }
-

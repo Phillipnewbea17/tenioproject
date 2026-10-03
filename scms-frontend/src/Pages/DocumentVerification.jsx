@@ -1,505 +1,800 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { getApplications,updateApplication, deleteApplication,} from "../services/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  FiSearch,
-  FiFilter,
-  FiChevronDown,
-  FiUsers,
-  FiClock,
+  getApplications,
+  updateApplication,
+  deleteApplication,
+} from "../services/api";
+import {
+  FiAlertCircle,
+  FiAlertTriangle,
   FiCheckCircle,
-  FiXCircle,
-  FiFileText,
+  FiChevronLeft,
+  FiChevronRight,
+  FiClock,
   FiEye,
-  FiDownload,
+  FiFileText,
+  FiInbox,
   FiMoreVertical,
+  FiRefreshCw,
+  FiSearch,
+  FiTrash2,
+  FiUsers,
   FiX,
-  FiInfo,
+  FiXCircle,
 } from "react-icons/fi";
 import "./DocumentVerification.css";
 
-/* ---------------------------------------------------------------- */
-/* Mock data — swap for real API data                                */
-/* ---------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Constants                                                                  */
+/* -------------------------------------------------------------------------- */
 
+// Each required document, and the fields Laravel sends for it.
+// If your API also returns a file link (for example valid_id_url), the
+// "View" button opens it. Without a link the button stays disabled.
 const DOC_TEMPLATE = [
-  { key: "validId", name: "Valid ID", description: "e.g., Passport, Driver's License" },
-  { key: "birthCert", name: "Birth Certificate", description: "Issued by PSA / local civil registrar" },
-  { key: "proofResidence", name: "Proof of Residence", description: "Barangay certificate or utility bill" },
-  { key: "photo", name: "2x2 Photo", description: "Recent, white background" },
-];
-
-function makeDocs(uploadedFlags) {
-  return DOC_TEMPLATE.map((d, i) => ({ ...d, uploaded: uploadedFlags[i] }));
-}
-
-const INITIAL_APPLICANTS = [
   {
-    id: 1,
-    appId: "SC-2026-0001",
-    name: "Juan Dela Cruz",
-    submittedAt: "2026-07-25T10:45:00",
-    status: "Pending",
-    priority: "High",
-    contact: "0917 123 4567",
-    barangay: "Poblacion",
-    age: 72,
-    birthday: "May 27, 1954",
-    documents: makeDocs([true, true, true, true]),
-    notes: "",
-    history: [
-      { date: "July 25, 2026 · 10:45 AM", action: "Application submitted" },
-      { date: "July 25, 2026 · 11:02 AM", action: "Documents uploaded (4/4)" },
-    ],
+    key: "validId",
+    name: "Valid ID",
+    description: "Passport, driver's license or other government ID",
+    uploadedField: "valid_id_uploaded",
+    urlField: "valid_id_url",
   },
   {
-    id: 2,
-    appId: "SC-2026-0002",
-    name: "Maria Santos",
-    submittedAt: "2026-07-25T09:30:00",
-    status: "Pending",
-    priority: "Medium",
-    contact: "0918 234 5678",
-    barangay: "San Isidro",
-    age: 69,
-    birthday: "May 28, 1955",
-    documents: makeDocs([true, true, true, false]),
-    notes: "",
-    history: [{ date: "July 25, 2026 · 09:30 AM", action: "Application submitted" }],
+    key: "birthCert",
+    name: "Birth certificate",
+    description: "Issued by PSA or the local civil registrar",
+    uploadedField: "birth_certificate_uploaded",
+    urlField: "birth_certificate_url",
   },
   {
-    id: 3,
-    appId: "SC-2026-0003",
-    name: "Pedro Reyes",
-    submittedAt: "2026-07-24T16:15:00",
-    status: "Verified",
-    priority: "Low",
-    contact: "0920 345 6789",
-    barangay: "San Roque",
-    age: 75,
-    birthday: "May 31, 1950",
-    documents: makeDocs([true, true, true, true]),
-    notes: "All documents in order.",
-    history: [
-      { date: "July 24, 2026 · 04:15 PM", action: "Application submitted" },
-      { date: "July 24, 2026 · 05:00 PM", action: "Marked as Verified" },
-    ],
+    key: "proofResidence",
+    name: "Proof of residence",
+    description: "Barangay certificate or utility bill",
+    uploadedField: "proof_residence_uploaded",
+    urlField: "proof_residence_url",
   },
   {
-    id: 4,
-    appId: "SC-2026-0004",
-    name: "Andrea Gonzales",
-    submittedAt: "2026-07-24T11:20:00",
-    status: "Pending",
-    priority: "High",
-    contact: "0916 456 7890",
-    barangay: "Poblacion",
-    age: 70,
-    birthday: "June 1, 1956",
-    documents: makeDocs([true, true, false, false]),
-    notes: "",
-    history: [{ date: "July 24, 2026 · 11:20 AM", action: "Application submitted" }],
-  },
-  {
-    id: 5,
-    appId: "SC-2026-0005",
-    name: "Ramon Bautista",
-    submittedAt: "2026-07-23T14:05:00",
-    status: "Rejected",
-    priority: "Medium",
-    contact: "0915 567 8901",
-    barangay: "Mahayag",
-    age: 65,
-    birthday: "June 2, 1961",
-    documents: makeDocs([true, true, true, true]),
-    notes: "Proof of residence does not match declared address.",
-    history: [
-      { date: "July 23, 2026 · 02:05 PM", action: "Application submitted" },
-      { date: "July 23, 2026 · 03:30 PM", action: "Marked as Rejected" },
-    ],
-  },
-  {
-    id: 6,
-    appId: "SC-2026-0006",
-    name: "Lucia Morales",
-    submittedAt: "2026-07-22T13:00:00",
-    status: "Verified",
-    priority: "Low",
-    contact: "0916 111 2222",
-    barangay: "Poblacion",
-    age: 70,
-    birthday: "June 1, 1956",
-    documents: makeDocs([true, true, true, true]),
-    notes: "",
-    history: [{ date: "July 22, 2026 · 01:00 PM", action: "Application submitted" }],
-  },
-  {
-    id: 7,
-    appId: "SC-2026-0007",
-    name: "Ana Cruz",
-    submittedAt: "2026-07-21T09:10:00",
-    status: "Pending",
-    priority: "High",
-    contact: "0917 333 4444",
-    barangay: "San Roque",
-    age: 71,
-    birthday: "July 20, 1954",
-    documents: makeDocs([true, false, false, false]),
-    notes: "",
-    history: [{ date: "July 21, 2026 · 09:10 AM", action: "Application submitted" }],
-  },
-  {
-    id: 8,
-    appId: "SC-2026-0008",
-    name: "Ricardo Lim",
-    submittedAt: "2026-07-20T15:40:00",
-    status: "Verified",
-    priority: "Low",
-    contact: "0918 555 6666",
-    barangay: "San Isidro",
-    age: 77,
-    birthday: "July 30, 1949",
-    documents: makeDocs([true, true, true, true]),
-    notes: "",
-    history: [{ date: "July 20, 2026 · 03:40 PM", action: "Application submitted" }],
+    key: "photo",
+    name: "2x2 photo",
+    description: "Recent photo with a white background",
+    uploadedField: "photo_uploaded",
+    urlField: "photo_url",
   },
 ];
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 8;
+const MIN_SENIOR_AGE = 60;
+const MIN_REASON_LENGTH = 5;
+const SKELETON_ROWS = [0, 1, 2, 3, 4];
+const TOAST_DURATION = 4500;
+const DAY = 24 * 60 * 60 * 1000;
+
 const TABS = ["All", "Pending", "Verified", "Rejected"];
-const SORT_OPTIONS = ["Newest First", "Oldest First"];
-const PRIORITY_OPTIONS = ["High", "Medium", "Low"];
 
-/* Header stat cards can reflect broader backend totals, independent of the
-   paginated table sample above — swap these for real aggregate counts. */
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "name", label: "Name (A to Z)" },
+];
 
-/* ---------------------------------------------------------------- */
-/* Helpers                                                            */
-/* ---------------------------------------------------------------- */
+const DOC_FILTERS = [
+  { value: "All", label: "Any documents" },
+  { value: "Complete", label: "All uploaded" },
+  { value: "Incomplete", label: "Missing documents" },
+];
 
-function formatDate(iso) {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return { date, time };
-}
+const STATUS_CLASS = {
+  Pending: "pending",
+  Verified: "verified",
+  Rejected: "rejected",
+};
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
 
 function initials(name) {
-  return name
+  return (name || "?")
     .split(" ")
-    .map((p) => p[0])
+    .filter(Boolean)
+    .map((part) => part[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
 }
 
 const AVATAR_TONES = ["tone-1", "tone-2", "tone-3", "tone-4", "tone-5"];
+
 function avatarTone(id) {
-  return AVATAR_TONES[id % AVATAR_TONES.length];
+  const number = Number(id);
+  const index = Number.isFinite(number) ? Math.abs(number) : 0;
+  return AVATAR_TONES[index % AVATAR_TONES.length];
 }
 
-const STATUS_BADGE = {
-  Pending: "badge-amber",
-  Verified: "badge-green",
-  Rejected: "badge-red",
-};
+function formatDateTime(value) {
+  const date = value ? new Date(value) : null;
 
-const PRIORITY_BADGE = {
-  High: "badge-red-soft",
-  Medium: "badge-amber-soft",
-  Low: "badge-green-soft",
-};
+  if (!date || Number.isNaN(date.getTime())) {
+    return { date: "-", time: "" };
+  }
 
-function docCountTone(uploadedCount) {
-  if (uploadedCount === 4) return "doc-green";
-  if (uploadedCount >= 3) return "doc-amber";
-  return "doc-red";
+  return {
+    date: date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    time: date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }),
+  };
 }
 
-function useOutsideClose(onClose) {
-  const ref = useRef(null);
-  useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
+function formatBirthday(value) {
+  if (!value) return "-";
+
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatPurok(value) {
+  if (!value) return "-";
+  return /^\d+$/.test(String(value).trim()) ? `Purok ${value}` : String(value);
+}
+
+// How long a pending application has been waiting for a decision.
+function waitingInfo(applicant) {
+  if (applicant.status !== "Pending") return null;
+
+  const submitted = new Date(applicant.submittedAt).getTime();
+  if (Number.isNaN(submitted)) return null;
+
+  const days = Math.max(0, Math.floor((Date.now() - submitted) / DAY));
+  const label = days === 0 ? "Today" : days === 1 ? "1 day" : `${days} days`;
+  const tone = days >= 7 ? "late" : days >= 3 ? "slow" : "ok";
+
+  return { label, tone };
+}
+
+function documentsTone(uploaded, total) {
+  if (uploaded === total) return "complete";
+  if (uploaded >= total - 1) return "partial";
+  return "low";
+}
+
+function buildDocuments(row) {
+  return DOC_TEMPLATE.map((doc) => ({
+    key: doc.key,
+    name: doc.name,
+    description: doc.description,
+    uploaded: Boolean(row[doc.uploadedField]),
+    url: row[doc.urlField] || "",
+  }));
+}
+
+// Converts a Laravel application row into the shape this page uses.
+function normalizeApplication(row) {
+  const age =
+    row.age === null || row.age === undefined || row.age === ""
+      ? null
+      : Number(row.age);
+
+  return {
+    id: row.id,
+    appId: row.application_id || "",
+    name: row.name || "Unnamed applicant",
+    submittedAt: row.submitted_at,
+    status: row.status || "Pending",
+    contact: row.contact || "",
+    purok: row.purok || "",
+    age: Number.isNaN(age) ? null : age,
+    birthdayKey: row.birth_date ? String(row.birth_date).slice(0, 10) : "",
+    birthday: formatBirthday(row.birth_date),
+    documents: buildDocuments(row),
+    notes: row.notes || "",
+    history: Array.isArray(row.history) ? row.history : [],
+  };
+}
+
+function duplicateKey(applicant) {
+  if (!applicant.birthdayKey) return "";
+  return `${applicant.name.trim().toLowerCase()}|${applicant.birthdayKey}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small building blocks                                                      */
+/* -------------------------------------------------------------------------- */
+
+function StatusBadge({ status }) {
+  return (
+    <span className={`dv-badge ${STATUS_CLASS[status] || "pending"}`}>
+      <span className="dv-badge-dot" />
+      {status}
+    </span>
+  );
+}
+
+// A "more actions" menu. It is positioned with fixed coordinates so the
+// scrollable table never clips it.
+function RowMenu({ label, items }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({});
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const close = useCallback(() => setOpen(false), []);
+
+  const toggle = () => {
+    if (open) {
+      close();
+      return;
     }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [onClose]);
-  return ref;
-}
 
-/* ---------------------------------------------------------------- */
-/* Side panel: applicant detail + verification                       */
-/* ---------------------------------------------------------------- */
+    const rect = buttonRef.current.getBoundingClientRect();
+    const estimatedHeight = items.length * 42 + 16;
+    const openUp = window.innerHeight - rect.bottom < estimatedHeight + 12;
 
-function ApplicantPanel({ applicant, onClose, onDecision }) {
-  const [tab, setTab] = useState("Documents");
-  const [choice, setChoice] = useState("verify");
-  const [notes, setNotes] = useState("");
-  const [message, setMessage] = useState("");
+    setPosition(
+      openUp
+        ? {
+            bottom: window.innerHeight - rect.top + 6,
+            right: window.innerWidth - rect.right,
+          }
+        : {
+            top: rect.bottom + 6,
+            right: window.innerWidth - rect.right,
+          }
+    );
+    setOpen(true);
+  };
 
   useEffect(() => {
-    if (!applicant) return;
-    setTab("Documents");
-    setChoice(applicant.status === "Rejected" ? "reject" : "verify");
-    setNotes(applicant.notes || "");
-    setMessage("");
-  }, [applicant]);
+    if (!open) return undefined;
 
-  if (!applicant) return null;
+    menuRef.current?.querySelector("button:not(:disabled)")?.focus();
 
-  const { date, time } = formatDate(applicant.submittedAt);
-  const uploadedCount = applicant.documents.filter((d) => d.uploaded).length;
+    const handlePointer = (event) => {
+      if (
+        menuRef.current?.contains(event.target) ||
+        buttonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      close();
+    };
 
-  const commit = (status) => {
-    onDecision(applicant.id, status, notes);
-    setMessage(status === "Verified" ? "Application approved." : "Application rejected.");
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        close();
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [open, close]);
+
+  const handleMenuKey = (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+
+    const buttons = Array.from(
+      menuRef.current.querySelectorAll("button:not(:disabled)")
+    );
+    if (buttons.length === 0) return;
+
+    const index = buttons.indexOf(document.activeElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    buttons[(index + step + buttons.length) % buttons.length].focus();
   };
 
   return (
-    <aside className="applicant-panel">
-      <button type="button" className="panel-close" onClick={onClose} aria-label="Close">
-        <FiX />
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="dv-icon-btn dv-more-btn"
+        onClick={toggle}
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="More actions"
+      >
+        <FiMoreVertical />
       </button>
 
-      <div className="panel-profile">
-        <span className={`panel-avatar ${avatarTone(applicant.id)}`}>{initials(applicant.name)}</span>
-        <h3>{applicant.name}</h3>
-        <span className="panel-app-id">{applicant.appId}</span>
-        <span className="panel-submitted">
-          Submitted on {date} &nbsp;|&nbsp; {time}
-        </span>
-      </div>
+      {open && (
+        <div
+          ref={menuRef}
+          className="dv-menu"
+          role="menu"
+          style={position}
+          onKeyDown={handleMenuKey}
+        >
+          {items.map((item) =>
+            item.divider ? (
+              <div key={item.key} className="dv-menu-divider" role="separator" />
+            ) : (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                className={`dv-menu-item${item.tone ? ` ${item.tone}` : ""}`}
+                onClick={() => {
+                  close();
+                  item.onClick();
+                }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            )
+          )}
+        </div>
+      )}
+    </>
+  );
+}
 
-      <div className="panel-tabs">
-        {["Documents", "Details", "History"].map((t) => (
+function ConfirmDialog({
+  title,
+  children,
+  confirmLabel,
+  busyLabel,
+  busy,
+  onConfirm,
+  onCancel,
+}) {
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key === "Escape" && !busy) onCancel();
+    };
+
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [busy, onCancel]);
+
+  return (
+    <div
+      className="dv-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onCancel();
+      }}
+    >
+      <div
+        className="dv-dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="dv-dialog-title"
+      >
+        <div className="dv-dialog-body">
+          <span className="dv-dialog-icon">
+            <FiAlertTriangle />
+          </span>
+          <div>
+            <h2 id="dv-dialog-title">{title}</h2>
+            <p>{children}</p>
+          </div>
+        </div>
+
+        <div className="dv-dialog-actions">
           <button
-            key={t}
             type="button"
-            className={`panel-tab${tab === t ? " active" : ""}`}
-            onClick={() => setTab(t)}
+            className="dv-btn dv-btn-secondary"
+            onClick={onCancel}
+            disabled={busy}
           >
-            {t}
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="dv-btn dv-btn-danger"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? busyLabel : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Review drawer                                                              */
+/* -------------------------------------------------------------------------- */
+
+function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
+  const [tab, setTab] = useState("Documents");
+  const [notes, setNotes] = useState("");
+  const [noteError, setNoteError] = useState("");
+  const [saving, setSaving] = useState("");
+  const noteRef = useRef(null);
+
+  // Reset the drawer only when a different applicant is opened, so saving
+  // one applicant never wipes what the reviewer is typing.
+  useEffect(() => {
+    setTab("Documents");
+    setNotes(applicant.notes || "");
+    setNoteError("");
+    setSaving("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicant.id]);
+
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (event.key === "Escape" && !saving) onClose();
+    };
+
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose, saving]);
+
+  const submitted = formatDateTime(applicant.submittedAt);
+  const total = applicant.documents.length;
+  const uploadedCount = applicant.documents.filter((doc) => doc.uploaded).length;
+  const missing = applicant.documents.filter((doc) => !doc.uploaded);
+  const complete = missing.length === 0;
+  const underAge = applicant.age !== null && applicant.age < MIN_SENIOR_AGE;
+
+  const warnings = [];
+
+  if (underAge) {
+    warnings.push(
+      `Age is ${applicant.age}. Senior citizen eligibility starts at ${MIN_SENIOR_AGE}.`
+    );
+  }
+
+  if (duplicates.length > 0) {
+    warnings.push(
+      `Possible duplicate: ${duplicates
+        .map((other) => other.appId || other.name)
+        .join(", ")} has the same name and birthday.`
+    );
+  }
+
+  const commit = async (status) => {
+    if (status === "Rejected" && notes.trim().length < MIN_REASON_LENGTH) {
+      setNoteError("Add a reason so the senior knows what to fix.");
+      noteRef.current?.focus();
+      return;
+    }
+
+    setSaving(status);
+    const saved = await onDecision(applicant.id, status, notes.trim());
+    setSaving("");
+
+    if (saved) onClose();
+  };
+
+  return (
+    <aside
+      className="dv-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dv-drawer-title"
+    >
+      <header className="dv-drawer-header">
+        <div className="dv-drawer-profile">
+          <span className={`dv-avatar dv-avatar-lg ${avatarTone(applicant.id)}`}>
+            {initials(applicant.name)}
+          </span>
+          <div className="dv-drawer-heading">
+            <h2 id="dv-drawer-title">{applicant.name}</h2>
+            <span className="dv-muted">{applicant.appId || "No application ID"}</span>
+            <span className="dv-muted">
+              Submitted {submitted.date}
+              {submitted.time && ` at ${submitted.time}`}
+            </span>
+          </div>
+        </div>
+
+        <div className="dv-drawer-top">
+          <StatusBadge status={applicant.status} />
+          <button
+            type="button"
+            className="dv-icon-btn"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            <FiX />
+          </button>
+        </div>
+      </header>
+
+      <div className="dv-drawer-tabs" role="tablist">
+        {["Documents", "Details", "History"].map((name) => (
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            aria-selected={tab === name}
+            className={`dv-drawer-tab${tab === name ? " active" : ""}`}
+            onClick={() => setTab(name)}
+          >
+            {name}
           </button>
         ))}
       </div>
 
-      {tab === "Documents" && (
-        <>
-          <div className="checklist-card">
-            <h4>
-              Document Checklist ({uploadedCount} / {applicant.documents.length})
-            </h4>
-            <div className="checklist-items">
+      <div className="dv-drawer-body">
+        {warnings.length > 0 && (
+          <div className="dv-warnings" role="alert">
+            {warnings.map((warning) => (
+              <p key={warning}>
+                <FiAlertTriangle aria-hidden="true" />
+                {warning}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {tab === "Documents" && (
+          <section>
+            <div className="dv-section-head">
+              <h3>Required documents</h3>
+              <span
+                className={`dv-docs ${documentsTone(uploadedCount, total)}`}
+              >
+                {uploadedCount} of {total} uploaded
+              </span>
+            </div>
+
+            <ul className="dv-doc-list">
               {applicant.documents.map((doc) => (
-                <div className="checklist-item" key={doc.key}>
-                  <span className={`check-icon${doc.uploaded ? " done" : ""}`}>
+                <li className="dv-doc" key={doc.key}>
+                  <span className={`dv-doc-icon${doc.uploaded ? " done" : ""}`}>
                     {doc.uploaded ? <FiCheckCircle /> : <FiClock />}
                   </span>
-                  <span className="doc-file-icon">
-                    <FiFileText />
-                  </span>
-                  <div className="checklist-text">
-                    <span className="checklist-name">{doc.name}</span>
-                    <span className="checklist-desc">{doc.description}</span>
-                    <span className={`checklist-status${doc.uploaded ? " uploaded" : " missing"}`}>
+
+                  <div className="dv-doc-text">
+                    <strong>{doc.name}</strong>
+                    <small>{doc.description}</small>
+                  </div>
+
+                  <div className="dv-doc-side">
+                    <span
+                      className={`dv-doc-state${
+                        doc.uploaded ? " uploaded" : " missing"
+                      }`}
+                    >
                       {doc.uploaded ? "Uploaded" : "Missing"}
                     </span>
+
+                    {doc.uploaded && doc.url ? (
+                      <a
+                        className="dv-btn dv-btn-secondary dv-btn-sm"
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FiEye />
+                        View
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        className="dv-btn dv-btn-secondary dv-btn-sm"
+                        disabled
+                        title={
+                          doc.uploaded
+                            ? "Preview is not available yet."
+                            : "Nothing to view. This document was not uploaded."
+                        }
+                      >
+                        <FiEye />
+                        View
+                      </button>
+                    )}
                   </div>
-                  <div className="checklist-actions">
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      disabled={!doc.uploaded}
-                      title="View"
-                    >
-                      View
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn icon-only"
-                      disabled={!doc.uploaded}
-                      title="Download"
-                    >
-                      <FiDownload />
-                    </button>
-                  </div>
-                </div>
+                </li>
               ))}
-            </div>
-          </div>
+            </ul>
+          </section>
+        )}
 
-          <div className="verification-card">
-            <h4>Verification Section</h4>
-
-            <div className="verify-status-row">
-              <span className="verify-status-label">Status</span>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name={`status-${applicant.id}`}
-                  checked={choice === "verify"}
-                  onChange={() => setChoice("verify")}
-                />
-                <span className="radio-dot verify" />
-                Verify
-              </label>
-              <label className="radio-option">
-                <input
-                  type="radio"
-                  name={`status-${applicant.id}`}
-                  checked={choice === "reject"}
-                  onChange={() => setChoice("reject")}
-                />
-                <span className="radio-dot reject" />
-                Reject
-              </label>
+        {tab === "Details" && (
+          <section>
+            <div className="dv-section-head">
+              <h3>Applicant details</h3>
             </div>
 
-            <label className="notes-label" htmlFor={`notes-${applicant.id}`}>
-              Verification Notes (Optional)
-            </label>
-            <textarea
-              id={`notes-${applicant.id}`}
-              className="notes-textarea"
-              placeholder="Add notes here..."
-              maxLength={250}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-            <span className="notes-counter">{notes.length} / 250</span>
-
-            {message && <div className="panel-message">{message}</div>}
-
-            <div className="panel-actions">
-              <button type="button" className="btn-approve" onClick={() => commit("Verified")}>
-                <FiCheckCircle /> Approve
-              </button>
-              <button type="button" className="btn-reject" onClick={() => commit("Rejected")}>
-                <FiXCircle /> Reject
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {tab === "Details" && (
-        <div className="details-card">
-          <div className="details-row">
-            <span className="details-label">Contact Number</span>
-            <span className="details-value">{applicant.contact}</span>
-          </div>
-          <div className="details-row">
-            <span className="details-label">Barangay</span>
-            <span className="details-value">{applicant.barangay}</span>
-          </div>
-          <div className="details-row">
-            <span className="details-label">Age</span>
-            <span className="details-value">{applicant.age}</span>
-          </div>
-          <div className="details-row">
-            <span className="details-label">Birthday</span>
-            <span className="details-value">{applicant.birthday}</span>
-          </div>
-          <div className="details-row">
-            <span className="details-label">Priority</span>
-            <span className={`badge ${PRIORITY_BADGE[applicant.priority]}`}>
-              {applicant.priority}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {tab === "History" && (
-        <div className="history-card">
-          {applicant.history.map((h, idx) => (
-            <div className="history-item" key={idx}>
-              <span className="history-dot" />
+            <dl className="dv-details">
               <div>
-                <span className="history-action">{h.action}</span>
-                <span className="history-date">{h.date}</span>
+                <dt>Contact number</dt>
+                <dd>{applicant.contact || "-"}</dd>
               </div>
+              <div>
+                <dt>Purok</dt>
+                <dd>{formatPurok(applicant.purok)}</dd>
+              </div>
+              <div>
+                <dt>Age</dt>
+                <dd>{applicant.age ?? "-"}</dd>
+              </div>
+              <div>
+                <dt>Birthday</dt>
+                <dd>{applicant.birthday}</dd>
+              </div>
+            </dl>
+          </section>
+        )}
+
+        {tab === "History" && (
+          <section>
+            <div className="dv-section-head">
+              <h3>Activity</h3>
             </div>
-          ))}
+
+            {applicant.history.length === 0 ? (
+              <p className="dv-muted">No activity recorded yet.</p>
+            ) : (
+              <ol className="dv-timeline">
+                {[...applicant.history].reverse().map((entry, index) => (
+                  <li key={`${entry.date}-${index}`}>
+                    <span className="dv-timeline-dot" />
+                    <div>
+                      <strong>{entry.action}</strong>
+                      <small>{entry.date}</small>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        )}
+      </div>
+
+      <footer className="dv-drawer-footer">
+        <div className={`dv-field${noteError ? " has-error" : ""}`}>
+          <label htmlFor="dv-note">
+            Decision note{" "}
+            <span className="dv-optional">(required when rejecting)</span>
+          </label>
+          <textarea
+            id="dv-note"
+            ref={noteRef}
+            rows={2}
+            maxLength={250}
+            placeholder="Example: Valid ID is blurry. Please upload a clear photo."
+            value={notes}
+            onChange={(event) => {
+              setNotes(event.target.value);
+              setNoteError("");
+            }}
+            aria-invalid={Boolean(noteError)}
+            aria-describedby={noteError ? "dv-note-error" : undefined}
+          />
+          <div className="dv-note-meta">
+            {noteError ? (
+              <p className="dv-field-error" id="dv-note-error">
+                <FiAlertCircle aria-hidden="true" />
+                {noteError}
+              </p>
+            ) : (
+              <span />
+            )}
+            <span className="dv-muted">{notes.length} / 250</span>
+          </div>
         </div>
-      )}
+
+        {!complete && (
+          <p className="dv-hint">
+            Missing: {missing.map((doc) => doc.name).join(", ")}. Approval unlocks
+            when every document is uploaded. Reject with a reason so the senior
+            can resubmit.
+          </p>
+        )}
+
+        <div className="dv-drawer-actions">
+          <button
+            type="button"
+            className="dv-btn dv-btn-reject"
+            onClick={() => commit("Rejected")}
+            disabled={Boolean(saving) || applicant.status === "Rejected"}
+          >
+            <FiXCircle />
+            {saving === "Rejected" ? "Rejecting..." : "Reject"}
+          </button>
+          <button
+            type="button"
+            className="dv-btn dv-btn-primary"
+            onClick={() => commit("Verified")}
+            disabled={
+              Boolean(saving) || !complete || applicant.status === "Verified"
+            }
+            title={complete ? undefined : "Every document must be uploaded first."}
+          >
+            <FiCheckCircle />
+            {saving === "Verified" ? "Approving..." : "Approve"}
+          </button>
+        </div>
+      </footer>
     </aside>
   );
 }
 
-/* ---------------------------------------------------------------- */
-/* Main component                                                     */
-/* ---------------------------------------------------------------- */
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function DocumentVerification() {
- const [applicants, setApplicants] = useState([]);
- const headerStats = useMemo(
-  () => ({
-    total: applicants.length,
-    pending: applicants.filter((a) => a.status === "Pending").length,
-    verified: applicants.filter((a) => a.status === "Verified").length,
-    rejected: applicants.filter((a) => a.status === "Rejected").length,
-  }),
-  [applicants]
-);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [applicants, setApplicants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
-  const [sortBy, setSortBy] = useState("Newest First");
-  const [sortOpen, setSortOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState([]);
+  const [docFilter, setDocFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
   const [currentPage, setCurrentPage] = useState(1);
+
   const [selectedId, setSelectedId] = useState(null);
-  const [kebabOpenId, setKebabOpenId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const sortRef = useOutsideClose(() => setSortOpen(false));
-  const filterRef = useOutsideClose(() => setFilterOpen(false));
-  const kebabRef = useOutsideClose(() => setKebabOpenId(null));
+  const [toasts, setToasts] = useState([]);
+  const toastTimers = useRef(new Map());
 
-useEffect(() => {
-  getApplications()
-    .then((data) => {
-      const formattedApplicants = data.map((a) => ({
-        id: a.id,
-        appId: a.application_id,
-        name: a.name,
-        submittedAt: a.submitted_at,
-        status: a.status,
-        priority: a.priority,
-        contact: a.contact || "",
-        barangay: a.purok || "",
-        age: a.age || "",
-        birthday: a.birth_date
-          ? new Date(
-              `${String(a.birth_date).slice(0, 10)}T00:00:00`
-            ).toLocaleDateString("en-US", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })
-          : "-",
+  // Clear any pending toast timers when leaving the page.
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
 
-        documents: makeDocs([
-          Boolean(a.valid_id_uploaded),
-          Boolean(a.birth_certificate_uploaded),
-          Boolean(a.proof_residence_uploaded),
-          Boolean(a.photo_uploaded),
-        ]),
+  /* ------------------------------ Data loading ----------------------------- */
 
-        notes: a.notes || "",
-        history: Array.isArray(a.history) ? a.history : [],
-      }));
+  useEffect(() => {
+    let cancelled = false;
 
-      setApplicants(formattedApplicants);
-    })
-    .catch((error) => {
-      console.error("Failed to load applications:", error);
-    });
-}, []);
+    setLoading(true);
+    setLoadError("");
+
+    getApplications()
+      .then((data) => {
+        if (cancelled) return;
+        const rows = Array.isArray(data) ? data : data?.data || [];
+        setApplicants(rows.map(normalizeApplication));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load applications:", error);
+        setLoadError(error.message || "Failed to load applications.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, activeTab, priorityFilter, sortBy]);
+  }, [search, activeTab, docFilter, sortBy]);
 
+  /* ------------------------------ Derived data ----------------------------- */
 
   const counts = useMemo(
     () => ({
@@ -511,424 +806,633 @@ useEffect(() => {
     [applicants]
   );
 
-  const filtered = useMemo(() => {
-    let list = applicants;
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map();
 
-    if (activeTab !== "All") {
-      list = list.filter((a) => a.status === activeTab);
-    }
-
-    if (priorityFilter.length > 0) {
-      list = list.filter((a) => priorityFilter.includes(a.priority));
-    }
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (a) => a.name.toLowerCase().includes(q) || a.appId.toLowerCase().includes(q)
-      );
-    }
-
-    list = [...list].sort((a, b) => {
-      const diff = new Date(a.submittedAt) - new Date(b.submittedAt);
-      return sortBy === "Newest First" ? -diff : diff;
+    applicants.forEach((applicant) => {
+      const key = duplicateKey(applicant);
+      if (!key) return;
+      groups.set(key, [...(groups.get(key) || []), applicant]);
     });
 
-    return list;
-  }, [applicants, activeTab, priorityFilter, searchQuery, sortBy]);
+    return groups;
+  }, [applicants]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const page = Math.min(currentPage, totalPages);
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  const selectedApplicant = applicants.find((a) => a.id === selectedId) || null;
-
-  const handleDecision = async (id, status, notes) => {
-  const selected = applicants.find((a) => a.id === id);
-
-  if (!selected) return;
-
-  const newHistory = [
-    ...selected.history,
-    {
-      date: new Date().toLocaleString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      action: `Marked as ${status}`,
-    },
-  ];
-
-  try {
-    const updated = await updateApplication(id, {
-      status,
-      notes,
-      history: newHistory,
-    });
-
-    setApplicants((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              status: updated.status,
-              notes: updated.notes || "",
-              history: Array.isArray(updated.history)
-                ? updated.history
-                : newHistory,
-            }
-          : a
-      )
-    );
-  } catch (error) {
-    console.error("Failed to update application:", error);
-    alert("Unable to update application.");
-  }
-};
-
-const handleRemoveApplication = async (id) => {
-  const confirmed = window.confirm(
-    "Remove this application? This cannot be undone."
-  );
-
-  if (!confirmed) return;
-
-  try {
-    await deleteApplication(id);
-
-    setApplicants((prev) =>
-      prev.filter((applicant) => applicant.id !== id)
-    );
-  } catch (error) {
-    console.error("Failed to delete application:", error);
-    alert("Unable to remove application.");
-  }
-};
-
-  const togglePriority = (p) => {
-    setPriorityFilter((prev) =>
-      prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]
+  const duplicatesOf = (applicant) => {
+    const key = duplicateKey(applicant);
+    if (!key) return [];
+    return (duplicateGroups.get(key) || []).filter(
+      (other) => other.id !== applicant.id
     );
   };
 
-  const pageNumbers = useMemo(() => {
-    const pages = [];
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-    if (pages.length <= 6) return pages;
-    const set = new Set([1, 2, totalPages - 1, totalPages, page - 1, page, page + 1]);
-    const trimmed = [...set].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
-    const withDots = [];
-    trimmed.forEach((p, idx) => {
-      if (idx > 0 && p - trimmed[idx - 1] > 1) withDots.push("...");
-      withDots.push(p);
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    const rows = applicants.filter((applicant) => {
+      if (activeTab !== "All" && applicant.status !== activeTab) return false;
+
+      const uploaded = applicant.documents.filter((d) => d.uploaded).length;
+      const isComplete = uploaded === applicant.documents.length;
+
+      if (docFilter === "Complete" && !isComplete) return false;
+      if (docFilter === "Incomplete" && isComplete) return false;
+
+      if (!query) return true;
+
+      return (
+        applicant.name.toLowerCase().includes(query) ||
+        applicant.appId.toLowerCase().includes(query) ||
+        String(applicant.purok).toLowerCase().includes(query)
+      );
     });
-    return withDots;
+
+    return [...rows].sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+      }
+
+      const diff = new Date(a.submittedAt) - new Date(b.submittedAt);
+      return sortBy === "newest" ? -diff : diff;
+    });
+  }, [applicants, activeTab, docFilter, search, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const page = Math.min(currentPage, totalPages);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageRows = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const selectedApplicant =
+    applicants.find((applicant) => applicant.id === selectedId) || null;
+
+  const hasFilters =
+    Boolean(search.trim()) || activeTab !== "All" || docFilter !== "All";
+
+  const showTable = loading || (!loadError && filtered.length > 0);
+
+  /* -------------------------------- Toasts --------------------------------- */
+
+  const dismissToast = (id) => {
+    clearTimeout(toastTimers.current.get(id));
+    toastTimers.current.delete(id);
+    setToasts((previous) => previous.filter((toast) => toast.id !== id));
+  };
+
+  const pushToast = (message, type = "success") => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((previous) => [...previous, { id, message, type }]);
+    toastTimers.current.set(
+      id,
+      setTimeout(() => dismissToast(id), TOAST_DURATION)
+    );
+  };
+
+  /* -------------------------------- Actions -------------------------------- */
+
+  const clearFilters = () => {
+    setSearch("");
+    setActiveTab("All");
+    setDocFilter("All");
+  };
+
+  const closePanel = useCallback(() => setSelectedId(null), []);
+
+  // Returns true when the server saved the decision, so the drawer only
+  // closes (and only reports success) when it really worked.
+  const handleDecision = async (id, status, notes) => {
+    const target = applicants.find((applicant) => applicant.id === id);
+    if (!target) return false;
+
+    const now = new Date();
+    const stamp = `${now.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    })} · ${now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    })}`;
+
+    // Your API currently expects the browser to send the history list.
+    // Later, move this to Laravel so the server records who decided and when.
+    const history = [
+      ...target.history,
+      { date: stamp, action: `Marked as ${status}` },
+    ];
+
+    try {
+      const updated = await updateApplication(id, { status, notes, history });
+
+      setApplicants((previous) =>
+        previous.map((applicant) =>
+          applicant.id === id
+            ? {
+                ...applicant,
+                status: updated?.status || status,
+                notes: updated?.notes ?? notes,
+                history: Array.isArray(updated?.history)
+                  ? updated.history
+                  : history,
+              }
+            : applicant
+        )
+      );
+
+      pushToast(
+        status === "Verified"
+          ? `${target.name} was verified.`
+          : `${target.name} was rejected.`
+      );
+      return true;
+    } catch (error) {
+      console.error("Failed to update application:", error);
+      pushToast(
+        error.message || "Unable to save the decision. Please try again.",
+        "error"
+      );
+      return false;
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+
+    try {
+      await deleteApplication(deleteTarget.id);
+
+      setApplicants((previous) =>
+        previous.filter((applicant) => applicant.id !== deleteTarget.id)
+      );
+      if (selectedId === deleteTarget.id) setSelectedId(null);
+      pushToast(`${deleteTarget.name}'s application was deleted.`);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error("Failed to delete application:", error);
+      pushToast(
+        error.message || "Unable to delete the application. Please try again.",
+        "error"
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  /* -------------------------------- Render --------------------------------- */
+
+  const statCards = [
+    {
+      key: "total",
+      label: "Total applications",
+      value: counts.All,
+      note: "All submissions",
+      tone: "green",
+      icon: <FiUsers />,
+    },
+    {
+      key: "pending",
+      label: "Pending review",
+      value: counts.Pending,
+      note: "Waiting for a decision",
+      tone: "amber",
+      icon: <FiClock />,
+    },
+    {
+      key: "verified",
+      label: "Verified",
+      value: counts.Verified,
+      note: "Documents approved",
+      tone: "blue",
+      icon: <FiCheckCircle />,
+    },
+    {
+      key: "rejected",
+      label: "Rejected",
+      value: counts.Rejected,
+      note: "Needs resubmission",
+      tone: "red",
+      icon: <FiXCircle />,
+    },
+  ];
+
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 6) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const wanted = new Set([1, 2, totalPages - 1, totalPages, page - 1, page, page + 1]);
+    const sorted = [...wanted]
+      .filter((number) => number >= 1 && number <= totalPages)
+      .sort((a, b) => a - b);
+
+    const result = [];
+    sorted.forEach((number, index) => {
+      if (index > 0 && number - sorted[index - 1] > 1) result.push("...");
+      result.push(number);
+    });
+
+    return result;
   }, [totalPages, page]);
 
   return (
-    <div className={`doc-verification${selectedApplicant ? " with-panel" : ""}`}>
-      <div className="dv-main">
-        <div className="dv-heading">
+    <div className="doc-verification">
+      {/* Heading */}
+      <header className="dv-heading">
+        <div className="dv-title-row">
+          <span className="dv-title-icon">
+            <FiFileText />
+          </span>
           <div>
             <h1>Document Verification</h1>
-            <p>Review and verify uploaded documents submitted by senior citizens.</p>
-          </div>
-
-          <div className="dv-heading-controls">
-            <div className="search-box">
-              <FiSearch />
-              <input
-                type="text"
-                placeholder="Search applicant..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <div className="filter-wrap" ref={filterRef}>
-              <button
-                type="button"
-                className="btn-outline"
-                onClick={() => setFilterOpen((o) => !o)}
-              >
-                <FiFilter /> Filter
-                <FiChevronDown className={`chevron${filterOpen ? " open" : ""}`} />
-              </button>
-              {filterOpen && (
-                <div className="dropdown-menu filter-menu">
-                  <span className="dropdown-heading">Priority</span>
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <label className="checkbox-option" key={p}>
-                      <input
-                        type="checkbox"
-                        checked={priorityFilter.includes(p)}
-                        onChange={() => togglePriority(p)}
-                      />
-                      {p}
-                    </label>
-                  ))}
-                  {priorityFilter.length > 0 && (
-                    <button
-                      type="button"
-                      className="dropdown-clear"
-                      onClick={() => setPriorityFilter([])}
-                    >
-                      Clear filters
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            <p>Check the documents seniors submit, then approve or reject them.</p>
           </div>
         </div>
+      </header>
 
-        {/* Stat cards */}
-        <div className="dv-stats">
-          <div className="stat-card">
-            <span className="stat-icon tone-green">
-              <FiUsers />
-            </span>
-            <div className="stat-body">
-              <span className="stat-label">Total Applications</span>
-              <span className="stat-value">{headerStats.total}</span>
-              <span className="stat-sublabel">All time total</span>
+      {/* Summary */}
+      <div className="dv-stats">
+        {statCards.map((card) => (
+          <div className="dv-stat" key={card.key}>
+            <span className={`dv-stat-icon ${card.tone}`}>{card.icon}</span>
+            <div className="dv-stat-text">
+              <span className="dv-stat-label">{card.label}</span>
+              <strong>{loading ? "–" : card.value}</strong>
+              <small>{card.note}</small>
             </div>
           </div>
-          <div className="stat-card">
-            <span className="stat-icon tone-amber">
-              <FiClock />
-            </span>
-            <div className="stat-body">
-              <span className="stat-label">Pending Verification</span>
-              <span className="stat-value">{headerStats.pending}</span>
-              <span className="stat-sublabel">Needs review</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon tone-green">
-              <FiCheckCircle />
-            </span>
-            <div className="stat-body">
-              <span className="stat-label">Verified</span>
-              <span className="stat-value">{headerStats.verified}</span>
-              <span className="stat-sublabel">Approved documents</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <span className="stat-icon tone-red">
-              <FiXCircle />
-            </span>
-            <div className="stat-body">
-              <span className="stat-label">Rejected</span>
-              <span className="stat-value">{headerStats.rejected}</span>
-              <span className="stat-sublabel">Rejected applications</span>
-            </div>
-          </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Tabs + sort */}
-        <div className="dv-tabs-row">
-          <div className="dv-tabs">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={`dv-tab${activeTab === t ? " active" : ""}`}
-                onClick={() => setActiveTab(t)}
-              >
-                {t} ({counts[t]})
-              </button>
-            ))}
-          </div>
-
-          <div className="sort-wrap" ref={sortRef}>
+      {/* Table panel */}
+      <section className="dv-panel">
+        <div className="dv-tabs" role="tablist" aria-label="Filter by status">
+          {TABS.map((name) => (
             <button
+              key={name}
               type="button"
-              className="btn-outline"
-              onClick={() => setSortOpen((o) => !o)}
+              role="tab"
+              aria-selected={activeTab === name}
+              className={`dv-tab${activeTab === name ? " active" : ""}`}
+              onClick={() => setActiveTab(name)}
             >
-              Sort by: {sortBy}
-              <FiChevronDown className={`chevron${sortOpen ? " open" : ""}`} />
+              {name}
+              <span className="dv-tab-count">{loading ? "–" : counts[name]}</span>
             </button>
-            {sortOpen && (
-              <div className="dropdown-menu">
-                {SORT_OPTIONS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`dropdown-item${s === sortBy ? " active" : ""}`}
-                    onClick={() => {
-                      setSortBy(s);
-                      setSortOpen(false);
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+          ))}
+        </div>
+
+        <div className="dv-toolbar">
+          <div className="dv-search">
+            <FiSearch aria-hidden="true" />
+            <input
+              type="text"
+              placeholder="Search by name, ID or purok"
+              aria-label="Search applications"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            {search && (
+              <button
+                type="button"
+                className="dv-search-clear"
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+              >
+                <FiX />
+              </button>
             )}
           </div>
+
+          <select
+            aria-label="Filter by documents"
+            value={docFilter}
+            onChange={(event) => setDocFilter(event.target.value)}
+          >
+            {DOC_FILTERS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            aria-label="Sort applications"
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+          >
+            {SORT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+
+          {hasFilters && (
+            <button
+              type="button"
+              className="dv-btn dv-btn-ghost dv-btn-sm"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
 
+        {/* Error state */}
+        {!loading && loadError && (
+          <div className="dv-state" role="alert">
+            <span className="dv-state-icon error">
+              <FiAlertCircle />
+            </span>
+            <h3>Applications could not be loaded</h3>
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className="dv-btn dv-btn-secondary"
+              onClick={() => setReloadKey((key) => key + 1)}
+            >
+              <FiRefreshCw />
+              Try again
+            </button>
+          </div>
+        )}
+
+        {/* Empty states */}
+        {!loading && !loadError && filtered.length === 0 && (
+          <div className="dv-state">
+            <span className="dv-state-icon">
+              <FiInbox />
+            </span>
+            {applicants.length === 0 ? (
+              <>
+                <h3>No applications yet</h3>
+                <p>
+                  Applications that seniors submit will appear here for review.
+                </p>
+              </>
+            ) : (
+              <>
+                <h3>No matching applications</h3>
+                <p>Try a different search or clear the filters.</p>
+                <button
+                  type="button"
+                  className="dv-btn dv-btn-secondary"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Table */}
-        <div className="dv-table-card">
-          <div className="dv-table-scroll">
+        {showTable && (
+          <div className="dv-table-wrap">
             <table className="dv-table">
               <thead>
                 <tr>
                   <th>Applicant</th>
-                  <th>Submitted</th>
+                  <th className="dv-col-hide-sm">Submitted</th>
                   <th>Documents</th>
                   <th>Status</th>
-                  <th>Priority</th>
-                  <th>Action</th>
+                  <th className="dv-col-hide-sm">Waiting</th>
+                  <th className="dv-actions-head">Action</th>
                 </tr>
               </thead>
+
               <tbody>
-                {paginated.map((a) => {
-                  const { date, time } = formatDate(a.submittedAt);
-                  const uploadedCount = a.documents.filter((d) => d.uploaded).length;
-                  return (
-                    <tr key={a.id} className={selectedId === a.id ? "row-selected" : ""}>
+                {loading &&
+                  SKELETON_ROWS.map((row) => (
+                    <tr key={row} aria-hidden="true">
                       <td>
-                        <div className="applicant-cell">
-                          <span className={`row-avatar ${avatarTone(a.id)}`}>
-                            {initials(a.name)}
-                          </span>
-                          <div>
-                            <span className="row-name">{a.name}</span>
-                            <span className="row-id">{a.appId}</span>
-                          </div>
+                        <div className="dv-applicant">
+                          <span className="dv-skeleton dv-skeleton-avatar" />
+                          <span className="dv-skeleton dv-skeleton-line" />
                         </div>
                       </td>
-                      <td>
-                        <span className="row-date">{date}</span>
-                        <span className="row-time">{time}</span>
+                      <td className="dv-col-hide-sm">
+                        <span className="dv-skeleton dv-skeleton-line" />
                       </td>
                       <td>
-                        <span className={`doc-count ${docCountTone(uploadedCount)}`}>
-                          <FiFileText /> {uploadedCount} / {a.documents.length}
-                        </span>
+                        <span className="dv-skeleton dv-skeleton-pill" />
                       </td>
                       <td>
-                        <span className={`badge ${STATUS_BADGE[a.status]}`}>{a.status}</span>
+                        <span className="dv-skeleton dv-skeleton-pill" />
                       </td>
-                      <td>
-                        <span className={`badge ${PRIORITY_BADGE[a.priority]}`}>
-                          {a.priority}
-                        </span>
+                      <td className="dv-col-hide-sm">
+                        <span className="dv-skeleton dv-skeleton-line short" />
                       </td>
-                      <td>
-                        <div className="action-cell">
+                      <td />
+                    </tr>
+                  ))}
+
+                {!loading &&
+                  pageRows.map((applicant) => {
+                    const submitted = formatDateTime(applicant.submittedAt);
+                    const uploaded = applicant.documents.filter(
+                      (doc) => doc.uploaded
+                    ).length;
+                    const totalDocs = applicant.documents.length;
+                    const waiting = waitingInfo(applicant);
+                    const pending = applicant.status === "Pending";
+
+                    return (
+                      <tr
+                        key={applicant.id}
+                        className={selectedId === applicant.id ? "selected" : ""}
+                      >
+                        <td>
                           <button
                             type="button"
-                            className={a.status === "Pending" ? "btn-review" : "btn-view"}
-                            onClick={() => setSelectedId(a.id)}
+                            className="dv-applicant dv-applicant-link"
+                            onClick={() => setSelectedId(applicant.id)}
+                            title="Open application"
                           >
-                            {a.status === "Pending" ? "Review" : "View"}
+                            <span
+                              className={`dv-avatar ${avatarTone(applicant.id)}`}
+                            >
+                              {initials(applicant.name)}
+                            </span>
+                            <span className="dv-applicant-text">
+                              <strong>{applicant.name}</strong>
+                              <small>{applicant.appId || "No ID"}</small>
+                            </span>
                           </button>
-                          <div className="kebab-wrap" ref={kebabOpenId === a.id ? kebabRef : null}>
+                        </td>
+
+                        <td className="dv-col-hide-sm">
+                          <span className="dv-date">{submitted.date}</span>
+                          <span className="dv-time">{submitted.time}</span>
+                        </td>
+
+                        <td>
+                          <span
+                            className={`dv-docs ${documentsTone(
+                              uploaded,
+                              totalDocs
+                            )}`}
+                          >
+                            <FiFileText />
+                            {uploaded} of {totalDocs}
+                          </span>
+                        </td>
+
+                        <td>
+                          <StatusBadge status={applicant.status} />
+                        </td>
+
+                        <td className="dv-col-hide-sm">
+                          {waiting ? (
+                            <span className={`dv-wait ${waiting.tone}`}>
+                              {waiting.label}
+                            </span>
+                          ) : (
+                            <span className="dv-faint">-</span>
+                          )}
+                        </td>
+
+                        <td>
+                          <div className="dv-actions">
                             <button
                               type="button"
-                              className="icon-btn icon-only"
-                              onClick={() =>
-                                setKebabOpenId((cur) => (cur === a.id ? null : a.id))
-                              }
-                              aria-label="More actions"
+                              className={`dv-btn dv-btn-sm ${
+                                pending ? "dv-btn-primary" : "dv-btn-secondary"
+                              }`}
+                              onClick={() => setSelectedId(applicant.id)}
                             >
-                              <FiMoreVertical />
+                              {pending ? "Review" : "View"}
                             </button>
-                            {kebabOpenId === a.id && (
-                              <div className="dropdown-menu kebab-menu">
-                                <button
-                                  type="button"
-                                  className="dropdown-item"
-                                  onClick={() => {
-                                    setSelectedId(a.id);
-                                    setKebabOpenId(null);
-                                  }}
-                                >
-                                  View Details
-                                </button>
-                               <button
-                        type="button"
-                              className="dropdown-item danger"
-                                  onClick={() => { handleRemoveApplication(a.id); setKebabOpenId(null); }}
-                                        >
-                                     Remove Application
-                                        </button>
-                              </div>
-                            )}
+
+                            <RowMenu
+                              label={`More actions for ${applicant.name}`}
+                              items={[
+                                {
+                                  key: "view",
+                                  label: "View details",
+                                  icon: <FiEye />,
+                                  onClick: () => setSelectedId(applicant.id),
+                                },
+                                { key: "divider", divider: true },
+                                {
+                                  key: "delete",
+                                  label: "Delete application",
+                                  icon: <FiTrash2 />,
+                                  tone: "danger",
+                                  onClick: () => setDeleteTarget(applicant),
+                                },
+                              ]}
+                            />
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {paginated.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="empty-row">
-                      No applicants match your search or filters.
-                    </td>
-                  </tr>
-                )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
+        )}
 
-          <div className="dv-pagination">
-            <span className="pagination-summary">
-              Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to{" "}
-              {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} entries
+        {/* Footer: count + pagination */}
+        {!loading && !loadError && filtered.length > 0 && (
+          <div className="dv-footer">
+            <span className="dv-muted">
+              Showing {pageStart + 1} to{" "}
+              {Math.min(pageStart + PAGE_SIZE, filtered.length)} of{" "}
+              {filtered.length}{" "}
+              {filtered.length === 1 ? "application" : "applications"}
             </span>
-            <div className="pagination-controls">
-              <button
-                type="button"
-                className="page-btn"
-                disabled={page === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              >
-                &lsaquo;
-              </button>
-              {pageNumbers.map((p, idx) =>
-                p === "..." ? (
-                  <span key={`dots-${idx}`} className="page-dots">
-                    ...
-                  </span>
-                ) : (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`page-btn${p === page ? " active" : ""}`}
-                    onClick={() => setCurrentPage(p)}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-              <button
-                type="button"
-                className="page-btn"
-                disabled={page === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              >
-                &rsaquo;
-              </button>
-            </div>
-          </div>
-        </div>     
-      </div>
 
+            {totalPages > 1 && (
+              <div className="dv-pagination">
+                <button
+                  type="button"
+                  className="dv-page-btn"
+                  onClick={() => setCurrentPage(page - 1)}
+                  disabled={page === 1}
+                  aria-label="Previous page"
+                >
+                  <FiChevronLeft />
+                </button>
+
+                {pageNumbers.map((number, index) =>
+                  number === "..." ? (
+                    <span key={`dots-${index}`} className="dv-page-dots">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={number}
+                      type="button"
+                      className={`dv-page-btn${number === page ? " active" : ""}`}
+                      onClick={() => setCurrentPage(number)}
+                      aria-current={number === page ? "page" : undefined}
+                    >
+                      {number}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  className="dv-page-btn"
+                  onClick={() => setCurrentPage(page + 1)}
+                  disabled={page === totalPages}
+                  aria-label="Next page"
+                >
+                  <FiChevronRight />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Review drawer */}
       {selectedApplicant && (
-        <ApplicantPanel
-          applicant={selectedApplicant}
-          onClose={() => setSelectedId(null)}
-          onDecision={handleDecision}
-        />
+        <>
+          <div className="dv-backdrop" onClick={closePanel} />
+          <ApplicantPanel
+            applicant={selectedApplicant}
+            duplicates={duplicatesOf(selectedApplicant)}
+            onClose={closePanel}
+            onDecision={handleDecision}
+          />
+        </>
       )}
+
+      {/* Delete confirmation */}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete this application?"
+          confirmLabel="Delete application"
+          busyLabel="Deleting..."
+          busy={deleting}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+        >
+          {deleteTarget.name}'s application and its review history will be
+          removed. This cannot be undone.
+        </ConfirmDialog>
+      )}
+
+      {/* Toasts */}
+      <div className="dv-toasts" role="status" aria-live="polite">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`dv-toast ${toast.type}`}>
+            {toast.type === "error" ? <FiAlertCircle /> : <FiCheckCircle />}
+            <span>{toast.message}</span>
+            <button
+              type="button"
+              onClick={() => dismissToast(toast.id)}
+              aria-label="Dismiss"
+            >
+              <FiX />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
