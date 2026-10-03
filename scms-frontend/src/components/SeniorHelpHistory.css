@@ -1,0 +1,15 @@
+/* Extends the Records drawer's .rp-info section. */
+.shh .shh-empty { margin: 0; padding: 12px 16px; color: var(--rp-text-muted, #64736b); font-size: 13px; }
+.shh .shh-list { margin: 0; padding: 0; list-style: none; }
+.shh .shh-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--rp-border, #e2e9e4); }
+.shh .shh-main { display: flex; flex-direction: column; min-width: 0; }
+.shh .shh-main strong { font-weight: 600; overflow-wrap: anywhere; }
+.shh .shh-main span { color: var(--rp-text-muted, #64736b); font-size: 12px; overflow-wrap: anywhere; }
+.shh .shh-main .shh-resolution { color: #3d5645; }
+.shh .shh-status { flex-shrink: 0; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.shh .shh-status--pending { background: #fff4dc; color: #875b0b; }
+.shh .shh-status--working-on-it { background: #eaf2fd; color: #2b609a; }
+.shh .shh-status--resolved { background: #eaf5ec; color: #256839; }
+.shh .shh-status--closed { background: #f0f2f1; color: #4f5b55; }
+.shh .shh-footer { padding: 10px 16px; }
+.shh .shh-footer a { color: #15592c; font-size: 13px; font-weight: 600; }

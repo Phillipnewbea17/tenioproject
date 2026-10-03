@@ -54,6 +54,9 @@ const USERNAME_PATTERN = /^[a-z0-9._-]+$/i;
 const SKELETON_ROWS = [0, 1, 2, 3, 4];
 const TOAST_DURATION = 4500;
 
+// Toast ids only need to be unique while the page is open.
+let lastToastId = 0;
+
 // The logged-in user is read from storage so the page can protect their own
 // row. Save the user object as JSON under this key when you log in, for
 // example: localStorage.setItem("scms_user", JSON.stringify(response.user)).
@@ -618,6 +621,12 @@ export default function UserManagement() {
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
+  const reload = () => {
+    setLoading(true);
+    setLoadError("");
+    setReloadKey((key) => key + 1);
+  };
+
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
@@ -651,9 +660,6 @@ export default function UserManagement() {
 
   useEffect(() => {
     let cancelled = false;
-
-    setLoading(true);
-    setLoadError("");
 
     getUsers()
       .then((data) => {
@@ -775,7 +781,7 @@ export default function UserManagement() {
   };
 
   const pushToast = (message, type = "success") => {
-    const id = `${Date.now()}-${Math.random()}`;
+    const id = ++lastToastId;
     setToasts((previous) => [...previous, { id, message, type }]);
     toastTimers.current.set(
       id,
@@ -1104,10 +1110,8 @@ export default function UserManagement() {
       {/* Heading */}
       <header className="um-heading">
         <div className="um-title-row">
-          <span className="um-title-icon">
-            <FiUsers />
-          </span>
           <div>
+            <span className="um-eyebrow">People and records</span>
             <h1>User Management</h1>
             <p>Manage who can log in to SCMS and what they can do.</p>
           </div>
@@ -1224,7 +1228,7 @@ export default function UserManagement() {
             <button
               type="button"
               className="um-btn um-btn-secondary"
-              onClick={() => setReloadKey((key) => key + 1)}
+              onClick={reload}
             >
               <FiRefreshCw />
               Try again

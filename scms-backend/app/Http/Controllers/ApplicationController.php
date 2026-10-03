@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Application;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -51,7 +52,14 @@ class ApplicationController extends Controller
 
         $application = Application::create($validated);
 
+        ActivityLogger::record('Document Verification', 'Created', 'Application recorded.', $application, $this->label($application));
+
         return response()->json($application, 201);
+    }
+
+    private function label(Application $application): string
+    {
+        return "{$application->application_id} · {$application->name}";
     }
 
     public function show(Application $application)
@@ -82,11 +90,27 @@ class ApplicationController extends Controller
 
         $application->update($validated);
 
+        $changes = ActivityLogger::changes($application);
+
+        if ($changes) {
+            $status = $changes['status']['to'] ?? null;
+            [$action, $description] = match ($status) {
+                'Verified' => ['Document approved', 'Registration documents verified and approved.'],
+                'Rejected' => ['Document rejected', 'Registration rejected' . ($application->notes ? ": {$application->notes}" : '.')],
+                null => ['Updated', 'Updated ' . ActivityLogger::fieldList($changes) . '.'],
+                default => ['Status changed', "Status changed to {$status}."],
+            };
+
+            ActivityLogger::record('Document Verification', $action, $description, $application, $this->label($application), $changes);
+        }
+
         return response()->json($application);
     }
 
     public function destroy(Application $application)
     {
+        ActivityLogger::record('Document Verification', 'Deleted', 'Application deleted.', $application, $this->label($application));
+
         $application->delete();
 
         return response()->json([

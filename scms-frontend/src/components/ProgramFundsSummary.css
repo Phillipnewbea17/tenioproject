@@ -1,0 +1,90 @@
+/* Program funds summary ("style A" tokens) for Pension, Medical and Burial. */
+.pfs {
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 16px;
+  background: var(--scms-surface);
+  font-family: var(--scms-font-body);
+}
+
+.pfs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px 16px;
+}
+
+.pfs-head > div { flex: 1; min-width: 200px; }
+
+.pfs-icon {
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--scms-primary-soft);
+  color: var(--scms-primary);
+  font-size: 20px;
+}
+
+.pfs-head h2 {
+  margin: 0;
+  font-family: var(--scms-font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pfs-head p { margin: 2px 0 0; color: var(--scms-muted); font-size: 14px; }
+
+.pfs-link {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--scms-button-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--scms-primary);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pfs-link:hover { background: var(--scms-page); }
+.pfs-link:focus-visible { outline: 3px solid var(--scms-focus); outline-offset: 2px; }
+
+.pfs-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin: 0;
+  border-top: 1px solid var(--scms-border);
+  background: var(--scms-border);
+}
+
+.pfs-figure {
+  flex: 1 1 150px;
+  padding: 14px 24px 16px;
+  background: var(--scms-surface);
+}
+
+.pfs-figure dt { color: var(--scms-muted); font-size: 13px; font-weight: 500; }
+
+.pfs-figure dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pfs-figure--main { background: #F4FAF6; }
+.pfs-figure--main dd { color: var(--scms-primary); font-family: var(--scms-font-display); font-size: 22px; }
+
+@media (max-width: 640px) {
+  .pfs-head { padding: 16px; }
+  .pfs-link { width: 100%; }
+  .pfs-figure { flex-basis: calc(50% - 1px); padding: 12px 16px; }
+  .pfs-figure--main { flex-basis: 100%; }
+}

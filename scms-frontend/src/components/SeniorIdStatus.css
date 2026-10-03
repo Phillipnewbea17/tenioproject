@@ -1,0 +1,26 @@
+/* Extends the Records drawer's .rp-info section ("style A" tokens). */
+.sis .sis-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 18px; }
+.sis .sis-main { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sis .sis-number { font-family: var(--scms-font-display); font-size: 18px; letter-spacing: 0.01em; }
+.sis .sis-note { margin: 0; color: var(--scms-muted); font-size: 14px; }
+.sis > .sis-note { padding: 14px 18px; }
+.sis .sis-status { padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.sis .sis-status--active { background: var(--scms-success-soft); color: var(--scms-primary); }
+.sis .sis-status--pending { background: #FDF0D5; color: #6F4600; }
+.sis .sis-button {
+  min-height: 40px;
+  margin-top: 2px;
+  padding: 0 16px;
+  border: 1px solid var(--scms-button-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--scms-primary);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sis .sis-button:hover { background: var(--scms-page); }
+.sis .sis-button--primary { border-color: transparent; background: var(--scms-primary); color: #fff; }
+.sis .sis-button--primary:hover { background: var(--scms-primary-hover); }
+.sis .sis-button:focus-visible { outline: 3px solid var(--scms-focus); outline-offset: 2px; }

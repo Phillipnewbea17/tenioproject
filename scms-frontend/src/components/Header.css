@@ -1,88 +1,99 @@
+/* Top bar ("style A" mockup). Colors and fonts come from index.css. */
 .app-header {
-  --header-green-dark: #14532b;
-  --header-green: #1a5c2a;
-  --header-green-darker: #0f4020;
-
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 68px;
-  padding: 0 clamp(16px, 2.4vw, 32px);
-  background: linear-gradient(100deg, #063d1f, #08703a);
-  box-shadow: 0 3px 16px rgba(6, 61, 31, 0.15);
+  gap: 16px;
+  min-height: 72px;
+  padding: 0 40px;
   box-sizing: border-box;
-  font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--scms-surface);
+  border-bottom: 1px solid var(--scms-border);
+  font-family: var(--scms-font-body);
 }
 
-/* Left side: hamburger + welcome text */
 .app-header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
 }
 
+/* Collapses the sidebar on desktop; opens the drawer on phones. */
 .app-header-menu-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: #ffffff;
-  font-size: 20px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--scms-border);
+  border-radius: 10px;
+  background: var(--scms-surface);
+  color: var(--scms-ink-2);
+  font-size: 22px;
   cursor: pointer;
-  transition: background-color 0.15s ease;
 }
 
 .app-header-menu-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scms-page);
 }
 
-.app-header-menu-btn:focus-visible,
-.app-header-profile:focus-visible { outline-color: rgba(255, 255, 255, .72); }
-
 .app-header-welcome {
-  color: #ffffff;
-  font-size: 17px;
-  font-weight: 600;
+  overflow: hidden;
+  color: var(--scms-muted);
+  font-size: 15px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Right side: profile */
+/* Account button and menu */
 .app-header-right {
   position: relative;
+  flex-shrink: 0;
 }
 
 .app-header-profile {
   display: flex;
   align-items: center;
   gap: 10px;
-  border: none;
-  background: transparent;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 0 12px 0 6px;
+  border: 1px solid var(--scms-border);
   border-radius: 999px;
+  background: var(--scms-surface);
+  color: var(--scms-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
 .app-header-profile:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scms-page);
+}
+
+.app-header-menu-btn:focus-visible,
+.app-header-profile:focus-visible,
+.app-header-dropdown-item:focus-visible {
+  outline: 3px solid var(--scms-focus);
+  outline-offset: 2px;
 }
 
 .app-header-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: #ffffff;
-  color: var(--header-green-dark);
-  font-size: 18px;
-  overflow: hidden;
   flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--scms-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .app-header-avatar img {
@@ -92,15 +103,13 @@
 }
 
 .app-header-admin-name {
-  color: #ffffff;
-  font-size: 14.5px;
-  font-weight: 600;
   white-space: nowrap;
 }
 
 .app-header-chevron {
-  color: #ffffff;
-  font-size: 16px;
+  width: 18px;
+  height: 18px;
+  color: var(--scms-muted);
   transition: transform 0.15s ease;
 }
 
@@ -108,21 +117,20 @@
   transform: rotate(180deg);
 }
 
-/* Dropdown menu */
 .app-header-dropdown {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 180px;
-  background: #ffffff;
-  border: 1px solid var(--scms-border);
-  border-radius: 12px;
-  box-shadow: 0 16px 38px rgba(19, 43, 27, .16);
-  padding: 6px;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  z-index: 20;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid var(--scms-border);
+  border-radius: 12px;
+  background: var(--scms-surface);
+  box-shadow: 0 16px 38px rgba(16, 35, 26, 0.14);
 }
 
 .app-header-dropdown-item {
@@ -130,47 +138,62 @@
   align-items: center;
   gap: 10px;
   width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
   border: none;
-  background: transparent;
-  padding: 10px 12px;
   border-radius: 8px;
-  font-size: 14px;
+  background: transparent;
+  color: var(--scms-ink-2);
+  font: inherit;
+  font-size: 15px;
   font-weight: 500;
-  color: #2c3a33;
-  cursor: pointer;
   text-align: left;
+  cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
+.app-header-dropdown-item svg {
+  width: 20px;
+  height: 20px;
+}
+
 .app-header-dropdown-item:hover {
-  background: #f4f7f4;
+  background: var(--scms-page);
 }
 
 .app-header-dropdown-item.danger {
-  color: #c0392b;
+  color: #A33A2C;
+}
+
+.app-header-dropdown-item.danger:hover {
+  background: #FBEFED;
 }
 
 /* ============================================
    TABLET / MOBILE
    ============================================ */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .app-header {
-    padding: 0 14px;
+    padding: 0 16px;
   }
 
-  .app-header-welcome {
-    font-size: 15px;
-  }
+}
 
-  .app-header-admin-name {
-    display: none;
-  }
-
+@media (max-width: 640px) {
+  .app-header-admin-name,
   .app-header-chevron {
     display: none;
   }
 
   .app-header-profile {
-    padding: 4px;
+    padding: 0 5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header-chevron,
+  .app-header-profile,
+  .app-header-dropdown-item {
+    transition: none;
   }
 }
