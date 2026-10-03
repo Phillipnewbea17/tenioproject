@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\Mobile;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\SeniorCitizenController;
 use App\Http\Controllers\SeniorIdController;
@@ -19,8 +20,13 @@ use App\Http\Controllers\MedicalRequestController;
 use App\Http\Controllers\BurialRequestController;
 
 
-Route::middleware('auth:sanctum')->group(function () {
+// Admin web app: staff accounts only (senior-app tokens are refused).
+Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::get('/dashboard', DashboardController::class);
+
+    // Photos uploaded from the senior app.
+    Route::get('/applications/{application}/documents', [ApplicationController::class, 'documents']);
+    Route::get('/application-documents/{document}/file', [ApplicationController::class, 'documentFile']);
 
     // Senior records are never deleted (archive them instead), so there is no DELETE route.
     Route::apiResource('senior-citizens', SeniorCitizenController::class)->except(['destroy']);
@@ -94,7 +100,22 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::middleware('auth:sanctum')->post('/logout', [AuthController::class, 'logout']);
+Route::middleware(['auth:sanctum', 'staff'])->post('/logout', [AuthController::class, 'logout']);
+
+// Senior mobile app (my_senior_app). Tokens from these routes only work here.
+Route::prefix('mobile')->group(function () {
+    Route::post('/auth/code', [Mobile\AuthController::class, 'sendCode'])->middleware('throttle:6,1');
+    Route::post('/auth/verify', [Mobile\AuthController::class, 'verifyCode'])->middleware('throttle:15,1');
+
+    Route::middleware(['auth:sanctum', 'app.account'])->group(function () {
+        Route::post('/auth/sign-out', [Mobile\AuthController::class, 'signOut']);
+        Route::get('/profile', [Mobile\ProfileController::class, 'show']);
+        Route::post('/profile', [Mobile\ProfileController::class, 'update']);
+        Route::post('/documents', [Mobile\ApplicationController::class, 'uploadDocument']);
+        Route::post('/application/submit', [Mobile\ApplicationController::class, 'submit']);
+        Route::get('/application', [Mobile\ApplicationController::class, 'status']);
+    });
+});
 
 Route::post('/forgot-password', [PasswordResetController::class, 'sendLink'])
     ->middleware('throttle:5,1');
