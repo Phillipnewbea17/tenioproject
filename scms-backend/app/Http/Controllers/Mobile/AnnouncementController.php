@@ -10,7 +10,7 @@ use App\Models\Announcement;
  * Public (no login), and only active announcements are shown.
  * The JSON shape matches Announcement.fromJson in the Flutter app.
  */
-class MobileAnnouncementController extends Controller
+class AnnouncementController extends Controller
 {
     public function index()
     {
