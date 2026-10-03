@@ -3,15 +3,44 @@
 namespace App\Http\Controllers;
 
 use App\Models\Application;
+use App\Models\ApplicationDocument;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ApplicationController extends Controller
 {
     public function index()
     {
         return response()->json(
-            Application::orderBy('submitted_at', 'desc')->get()
+            Application::withCount('documents')->orderBy('submitted_at', 'desc')->get()
         );
+    }
+
+    /** Photos uploaded from the senior app for this application. */
+    public function documents(Application $application)
+    {
+        return response()->json(
+            $application->documents()->orderBy('id')->get()->map(fn (ApplicationDocument $document) => [
+                'id' => $document->id,
+                'type' => $document->type,
+                'label' => $document->label(),
+                'mime_type' => $document->mime_type,
+                'size' => $document->size,
+                'uploaded_at' => $document->created_at?->toIso8601String(),
+            ])
+        );
+    }
+
+    /** Streams one photo (private storage, staff only). */
+    public function documentFile(ApplicationDocument $document)
+    {
+        abort_unless(Storage::disk('local')->exists($document->path), 404, 'The photo file is missing.');
+
+        return Storage::disk('local')->response($document->path, null, [
+            'Content-Type' => $document->mime_type ?: 'image/jpeg',
+            'Cache-Control' => 'private, max-age=300',
+        ]);
     }
 
     public function store(Request $request)
@@ -51,7 +80,14 @@ class ApplicationController extends Controller
 
         $application = Application::create($validated);
 
+        ActivityLogger::record('Document Verification', 'Created', 'Application recorded.', $application, $this->label($application));
+
         return response()->json($application, 201);
+    }
+
+    private function label(Application $application): string
+    {
+        return "{$application->application_id} · {$application->name}";
     }
 
     public function show(Application $application)
@@ -82,11 +118,27 @@ class ApplicationController extends Controller
 
         $application->update($validated);
 
+        $changes = ActivityLogger::changes($application);
+
+        if ($changes) {
+            $status = $changes['status']['to'] ?? null;
+            [$action, $description] = match ($status) {
+                'Verified' => ['Document approved', 'Registration documents verified and approved.'],
+                'Rejected' => ['Document rejected', 'Registration rejected' . ($application->notes ? ": {$application->notes}" : '.')],
+                null => ['Updated', 'Updated ' . ActivityLogger::fieldList($changes) . '.'],
+                default => ['Status changed', "Status changed to {$status}."],
+            };
+
+            ActivityLogger::record('Document Verification', $action, $description, $application, $this->label($application), $changes);
+        }
+
         return response()->json($application);
     }
 
     public function destroy(Application $application)
     {
+        ActivityLogger::record('Document Verification', 'Deleted', 'Application deleted.', $application, $this->label($application));
+
         $application->delete();
 
         return response()->json([

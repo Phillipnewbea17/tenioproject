@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 
 class AnnouncementController extends Controller
@@ -27,6 +28,8 @@ class AnnouncementController extends Controller
 
         $announcement = Announcement::create($validated);
 
+        ActivityLogger::record('Announcements', 'Published', 'Announcement posted.', $announcement, $announcement->title);
+
         return response()->json($announcement, 201);
     }
 
@@ -48,11 +51,25 @@ class AnnouncementController extends Controller
 
         $announcement->update($validated);
 
+        $changes = ActivityLogger::changes($announcement);
+
+        if ($changes) {
+            $action = match ($changes['status']['to'] ?? null) {
+                'Archived' => 'Archived',
+                'Active' => 'Restored',
+                default => 'Updated',
+            };
+
+            ActivityLogger::record('Announcements', $action, 'Updated ' . ActivityLogger::fieldList($changes) . '.', $announcement, $announcement->title, $changes);
+        }
+
         return response()->json($announcement);
     }
 
     public function destroy(Announcement $announcement)
     {
+        ActivityLogger::record('Announcements', 'Deleted', 'Announcement deleted.', $announcement, $announcement->title);
+
         $announcement->delete();
 
         return response()->json([

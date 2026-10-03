@@ -1,22 +1,22 @@
 .birthday-list {
-  --bl-green: #1f7a3d;
-  --bl-green-dark: #14532b;
-  --bl-green-bg: #e3f3e6;
+  --bl-green: var(--scms-primary);
+  --bl-green-dark: var(--scms-primary-hover);
+  --bl-green-bg: var(--scms-primary-soft);
   --bl-amber: #d98c1f;
   --bl-amber-bg: #fdf0da;
   --bl-blue: #3b82c4;
   --bl-blue-bg: #e3edf7;
   --bl-red: #d64545;
-  --bl-text: #21302a;
-  --bl-text-muted: #6b7a72;
-  --bl-border: #eef1ef;
-  --bl-card-bg: #ffffff;
-  --bl-page-bg: #f6f8f7;
+  --bl-text: var(--scms-ink);
+  --bl-text-muted: var(--scms-muted);
+  --bl-border: var(--scms-border);
+  --bl-card-bg: var(--scms-surface);
+  --bl-page-bg: var(--scms-page);
 
   background: var(--bl-page-bg);
   padding: 24px 28px 40px;
   box-sizing: border-box;
-  font-family: "Segoe UI", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--scms-font-body);
   color: var(--bl-text);
 }
 
@@ -1154,5 +1154,163 @@
 @media (max-width: 650px) {
   .birthday-list .celebrant-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* style A page layout (matches Medical, Dashboard and the other pages) */
+.birthday-list {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1180px;
+  min-height: 100%;
+  padding: 40px;
+  font-size: 15px;
+}
+
+.birthday-list .bl-heading {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.birthday-list .bl-heading-left > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.birthday-list .bl-eyebrow {
+  color: var(--scms-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.birthday-list .bl-heading h1 {
+  margin: 0;
+  font-family: var(--scms-font-display);
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+}
+
+.birthday-list .bl-heading p {
+  margin: 4px 0 0;
+  color: var(--scms-muted);
+  font-size: 17px;
+}
+
+.birthday-list .btn-primary,
+.birthday-list .btn-outline {
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+/* Stats: cells joined by 1px border-colored gaps, large numbers. */
+.birthday-list .bl-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin-bottom: 32px;
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 16px;
+  background: var(--scms-border);
+}
+
+.birthday-list .stat-card {
+  flex: 1 1 200px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "icon label" "value value" "note note";
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 6px;
+  margin: 0;
+  padding: 22px 24px;
+  border: 0;
+  border-radius: 0;
+  background: var(--scms-surface);
+  box-shadow: none;
+}
+
+.birthday-list .stat-body {
+  display: contents;
+}
+
+.birthday-list .stat-icon,
+.birthday-list .stat-icon.tone-green,
+.birthday-list .stat-icon.tone-amber {
+  grid-area: icon;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  color: var(--scms-muted);
+  font-size: 20px;
+}
+
+.birthday-list .stat-label {
+  grid-area: label;
+  color: var(--scms-muted);
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.birthday-list .stat-value {
+  grid-area: value;
+  font-family: var(--scms-font-display);
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.birthday-list .stat-sublabel {
+  grid-area: note;
+  color: var(--scms-muted);
+  font-size: 13px;
+}
+
+.birthday-list .panel {
+  border-radius: 16px;
+}
+
+@media (max-width: 1100px) {
+  .birthday-list {
+    padding: 32px 24px;
+  }
+
+  .birthday-list .bl-heading h1 {
+    font-size: 36px;
+  }
+}
+
+@media (max-width: 640px) {
+  .birthday-list {
+    padding: 24px 16px 32px;
+  }
+
+  .birthday-list .bl-heading,
+  .birthday-list .bl-stats {
+    margin-bottom: 24px;
+  }
+
+  .birthday-list .bl-heading h1 {
+    font-size: 32px;
+  }
+
+  .birthday-list .stat-card {
+    flex-basis: calc(50% - 1px);
+    padding: 16px;
+  }
+
+  .birthday-list .stat-value {
+    font-size: 34px;
   }
 }

@@ -20,10 +20,13 @@ import {
   createBurialRequest,
   updateBurialRequest,
 } from "../services/api";
+import FundPayoutFields from "../components/FundPayoutFields";
+import ProgramFundsSummary from "../components/ProgramFundsSummary";
+import useAvailableFunds from "../hooks/useAvailableFunds";
+import { cleanAmount, peso, validatePayout } from "../utils/money";
 
-// Frontend version: saves only in this browser. No Laravel endpoint is assumed.
-// Replace readRecords / saveRequest with your API calls when the backend is ready.
-const STORAGE_KEY = "scms_burial_requests_v1";
+const FUND_PROGRAM = "Burial Assistance";
+
 const PAGE_SIZE = 8;
 const RELATIONSHIPS = [
   "Spouse", "Son", "Daughter", "Sibling", "Grandchild", "Other relative", "Other",
@@ -66,51 +69,11 @@ function emptyForm() {
     claimantName: "", relationship: "", contact: "",
     requestDate: today(), funeralHome: "",
     status: "Pending", releaseDate: "", receivedBy: "", remarks: "",
+    amount: "", fundId: "",
   };
 }
 
-function readRecords() {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw === null) return [];
-  const records = JSON.parse(raw);
-  const fields = Object.keys(emptyForm());
-  if (!Array.isArray(records) || records.some((record) =>
-    !record || typeof record.id !== "string" ||
-    typeof record.reference !== "string" || typeof record.createdAt !== "string" ||
-    typeof record.updatedAt !== "string" ||
-    fields.some((key) => typeof record[key] !== "string") ||
-    !record.seniorName.trim() || !record.claimantName.trim() || !validDate(record.deathDate) || !Object.hasOwn(STATUS_INFO, record.status) ||
-    !RELATIONSHIPS.includes(record.relationship) || !validDate(record.requestDate)
-  )) {
-    throw new Error("The saved burial records could not be read. Existing browser data has not been changed.");
-  }
-  return records;
-}
-
-function initialState() {
-  try {
-    return { records: readRecords(), error: "" };
-  } catch (error) {
-    return {
-      records: [],
-      error: error instanceof SyntaxError
-        ? "The saved burial records could not be read. Existing browser data has not been changed."
-        : error.message || "Allow browser storage, then reload this page to access your records.",
-    };
-  }
-}
-
-function nextReference(records) {
-  const prefix = `BUR-${new Date().getFullYear()}-`;
-  const sequence = records.reduce((max, record) => {
-    const number = record.reference.startsWith(prefix)
-      ? Number(record.reference.slice(prefix.length)) : 0;
-    return Number.isFinite(number) ? Math.max(max, number) : max;
-  }, 0) + 1;
-  return `${prefix}${String(sequence).padStart(4, "0")}`;
-}
-
-function validateRequest(form) {
+function validateRequest(form, funds = [], locked = false) {
   const errors = {};
   if (!form.seniorName) errors.seniorName = "Enter the deceased senior citizen’s full name.";
   if (!validDate(form.deathDate) || form.deathDate > today()) {
@@ -132,8 +95,14 @@ function validateRequest(form) {
       errors.releaseDate = "Choose a release date from the request date through today.";
     }
     if (!form.receivedBy) errors.receivedBy = "Enter the name of the person who received the assistance.";
+    if (!locked) Object.assign(errors, validatePayout(form, funds));
   }
   return errors;
+}
+
+/** Where the request came from: the senior app or a staff-recorded walk-in. */
+function SourceTag({ source }) {
+  return <span className={`bur-source bur-source--${source === "App" ? "app" : "walkin"}`}>{source === "App" ? "App" : "Walk-in"}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -157,6 +126,8 @@ function Detail({ label, children }) {
 }
 
 function Burial() {
+  const [reloadKey, setReloadKey] = useState(0);
+  const [fundsKey, setFundsKey] = useState(0);
 const [data, setData] = useState({
   records: [],
   error: "",
@@ -164,6 +135,7 @@ const [data, setData] = useState({
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
   const [relationshipFilter, setRelationshipFilter] = useState("All");
+  const [source, setSource] = useState("All");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState(null);
@@ -194,7 +166,7 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, []);
+}, [reloadKey]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -202,18 +174,19 @@ useEffect(() => {
       (!query || [record.seniorName, record.claimantName, record.seniorId, record.reference, record.purok]
         .some((value) => value.toLowerCase().includes(query))) &&
       (status === "All" || record.status === status) &&
-      (relationshipFilter === "All" || record.relationship === relationshipFilter)
+      (relationshipFilter === "All" || record.relationship === relationshipFilter) &&
+      (source === "All" || record.source === source)
     ).sort((a, b) => {
       const difference = a.requestDate.localeCompare(b.requestDate) || a.createdAt.localeCompare(b.createdAt);
       return sort === "oldest" ? difference : -difference;
     });
-  }, [records, search, status, relationshipFilter, sort]);
+  }, [records, search, status, relationshipFilter, source, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const start = (currentPage - 1) * PAGE_SIZE;
   const visible = filtered.slice(start, start + PAGE_SIZE);
-  const hasFilters = Boolean(search.trim() || status !== "All" || relationshipFilter !== "All");
+  const hasFilters = Boolean(search.trim() || status !== "All" || relationshipFilter !== "All" || source !== "All");
   const stats = [
     { label: "Total requests", value: records.length, icon: FiClipboard, tone: "neutral" },
     { label: "Pending", value: records.filter((r) => r.status === "Pending").length, icon: FiClock, tone: "pending" },
@@ -222,43 +195,36 @@ useEffect(() => {
   ];
 
   function resetFilters() {
-    setSearch(""); setStatus("All"); setRelationshipFilter("All"); setPage(1);
+    setSearch(""); setStatus("All"); setRelationshipFilter("All"); setSource("All"); setPage(1);
   }
 
 async function saveRequest(form, existing) {
-  try {
-    const saved = existing
-      ? await updateBurialRequest(existing.id, form)
-      : await createBurialRequest(form);
+  // Errors are thrown back to the open form, which shows them.
+  setFundsKey((key) => key + 1);
+  const saved = existing
+    ? await updateBurialRequest(existing.id, form)
+    : await createBurialRequest(form);
 
-    setData((current) => ({
-      records: existing
-        ? current.records.map((record) =>
-            record.id === existing.id ? saved : record
-          )
-        : [saved, ...current.records],
-      error: "",
-    }));
+  setData((current) => ({
+    records: existing
+      ? current.records.map((record) =>
+          record.id === existing.id ? saved : record
+        )
+      : [saved, ...current.records],
+    error: "",
+  }));
 
-    setModal(null);
+  setModal(null);
 
-    setNotice(
-      `${saved.reference || saved.id} ${
-        existing ? "updated" : "added"
-      }. Saved to the database.`
-    );
+  setNotice(
+    `${saved.reference || saved.id} ${
+      existing ? "updated" : "added"
+    }. Saved to the database.`
+  );
 
-    if (!existing) {
-      resetFilters();
-      setSort("newest");
-    }
-  } catch (error) {
-    setData((current) => ({
-      ...current,
-      error: error.message || "Failed to save Burial request.",
-    }));
-
-    throw error;
+  if (!existing) {
+    resetFilters();
+    setSort("newest");
   }
 }
 
@@ -267,16 +233,16 @@ async function saveRequest(form, existing) {
       <div>
         <p className="bur-eyebrow">Program Management</p>
         <h1 id="bur-page-title">Burial Assistance</h1>
-        <p className="bur-subtitle">Organize burial assistance requests and follow up with families.</p>
+        <p className="bur-subtitle">Review burial assistance requests from families and record what was released.</p>
       </div>
       <button className="bur-button bur-button--primary" onClick={() => setModal({ mode: "add" })} disabled={Boolean(error)} type="button">
-        <FiPlus aria-hidden="true" /> New request
+        <FiPlus aria-hidden="true" /> Record walk-in
       </button>
     </header>
 
     {error && <div className="bur-message bur-message--error" role="alert">
       <FiAlertCircle aria-hidden="true" /><span>{error}</span>
-      <button className="bur-text-button" type="button" onClick={() => setData(initialState())}>Try again</button>
+      <button className="bur-text-button" type="button" onClick={() => setReloadKey((key) => key + 1)}>Try again</button>
     </div>}
     {notice && <div className="bur-message bur-message--success" role="status">
       <FiCheckCircle aria-hidden="true" /><span>{notice}</span>
@@ -289,6 +255,8 @@ async function saveRequest(form, existing) {
         <div><span className="bur-stat-label">{label}</span><strong className="bur-stat-value">{error ? "—" : value}</strong></div>
       </div>)}
     </div>
+
+    <ProgramFundsSummary program={FUND_PROGRAM} refreshKey={fundsKey} />
 
     <section className="bur-panel" aria-labelledby="bur-list-title">
       <div className="bur-panel-heading">
@@ -320,16 +288,22 @@ async function saveRequest(form, existing) {
             <option value="All">All relationships</option>{RELATIONSHIPS.map((value) => <option key={value}>{value}</option>)}
           </select>
         </div>
+        <div className="bur-filter">
+          <label htmlFor="bur-source-filter">Source</label>
+          <select id="bur-source-filter" value={source} onChange={(event) => { setSource(event.target.value); setPage(1); }}>
+            <option value="All">All sources</option><option value="App">Senior app</option><option value="Walk-in">Walk-in</option>
+          </select>
+        </div>
         {hasFilters && <button className="bur-text-button bur-reset" type="button" onClick={resetFilters}>Clear filters</button>}
       </div>
 
-      {error ? <div className="bur-empty"><FiAlertCircle aria-hidden="true" /><h3>Records are unavailable</h3><p>Resolve the storage message above to view your saved requests.</p></div>
+      {error ? <div className="bur-empty"><FiAlertCircle aria-hidden="true" /><h3>Records are unavailable</h3><p>Use Try again above to reload the requests.</p></div>
       : filtered.length === 0 ? <div className="bur-empty">
         <span className="bur-empty-icon">{hasFilters ? <FiSearch aria-hidden="true" /> : <FiHeart aria-hidden="true" />}</span>
         <h3>{hasFilters ? "No matching requests" : "No burial requests yet"}</h3>
-        <p>{hasFilters ? "Try another name or adjust the filters." : "Add the first request to start tracking burial assistance."}</p>
+        <p>{hasFilters ? "Try another name or adjust the filters." : "Requests families send from the app will appear here. Record a walk-in for families who visit or call the office."}</p>
         <button className="bur-button bur-button--secondary" type="button" onClick={hasFilters ? resetFilters : () => setModal({ mode: "add" })}>
-          {hasFilters ? "Clear filters" : <><FiPlus aria-hidden="true" /> Add first request</>}
+          {hasFilters ? "Clear filters" : <><FiPlus aria-hidden="true" /> Record walk-in</>}
         </button>
       </div>
       : <div className="bur-table-wrap">
@@ -339,11 +313,11 @@ async function saveRequest(form, existing) {
           <tbody>{visible.map((record) => <tr key={record.id}>
             <td className="bur-person-cell"><div className="bur-person">
               <span className="bur-avatar" aria-hidden="true">{initials(record.seniorName)}</span>
-              <div><strong>{record.seniorName}</strong><span>{record.seniorId || "No senior ID"} · {record.reference}</span></div>
+              <div><strong>{record.seniorName}</strong><span>{record.seniorId || "No OSCA ID"} · {record.reference}</span><SourceTag source={record.source} /></div>
             </div></td>
             <td data-label="Claimant"><div className="bur-cell-stack"><span>{record.claimantName}</span><small>{record.relationship}</small></div></td>
             <td data-label="Requested"><span className="bur-date">{formatDate(record.requestDate)}</span></td>
-            <td data-label="Status"><StatusBadge status={record.status} /></td>
+            <td data-label="Status"><div className="bur-cell-stack"><StatusBadge status={record.status} />{record.status === "Released" && record.amount && <small>{peso(record.amount)}</small>}</div></td>
             <td className="bur-actions-cell"><div className="bur-row-actions">
               <button className="bur-row-button" type="button" aria-label={`View request ${record.reference} for ${record.seniorName}`} onClick={() => setModal({ mode: "view", record })}><FiEye aria-hidden="true" /> View</button>
               <button className="bur-row-button" type="button" aria-label={`Edit request ${record.reference} for ${record.seniorName}`} onClick={() => setModal({ mode: "edit", record })}><FiEdit2 aria-hidden="true" /> Edit</button>
@@ -370,10 +344,19 @@ async function saveRequest(form, existing) {
 
 function BurialDialog({ mode, record, onClose, onSave, onEdit }) {
   const dialogRef = useRef(null);
-  const [form, setForm] = useState(() => ({ ...emptyForm(), ...record }));
+  const [form, setForm] = useState(() => ({
+    ...emptyForm(),
+    ...record,
+    fundId: record?.fundId ? String(record.fundId) : "",
+    amount: record?.amount || "",
+  }));
   const [errors, setErrors] = useState({});
   const [saveError, setSaveError] = useState("");
   const viewing = mode === "view";
+  // Already released and paid from a fund: the money fields can't change here.
+  const locked = Boolean(record?.paidFromFund);
+  const releasing = !viewing && !locked && form.status === "Released";
+  const { funds, error: fundsError } = useAvailableFunds(FUND_PROGRAM, releasing);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -418,30 +401,38 @@ function BurialDialog({ mode, record, onClose, onSave, onEdit }) {
 
 async function submit(event) {
     event.preventDefault();
-    const cleaned = Object.fromEntries(Object.keys(emptyForm()).map((key) => [key, form[key].trim()]));
-    const nextErrors = validateRequest(cleaned);
+    const cleaned = Object.fromEntries(Object.keys(emptyForm()).map((key) => [key, String(form[key] ?? "").trim()]));
+    const nextErrors = validateRequest(cleaned, funds || [], locked);
     if (cleaned.status !== "Released") {
       cleaned.releaseDate = "";
       cleaned.receivedBy = "";
+      cleaned.amount = "";
+      cleaned.fundId = "";
+    } else if (!locked) {
+      cleaned.amount = cleanAmount(cleaned.amount);
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) {
       dialogRef.current.querySelector(`[name="${Object.keys(nextErrors)[0]}"]`)?.focus();
       return;
     }
-   await onSave(cleaned, record);
+    try {
+      await onSave(cleaned, record);
+    } catch (error) {
+      setSaveError(error.message || "Could not save the request.");
+    }
   }
 
   return <dialog ref={dialogRef} className="scms-burial-dialog" aria-labelledby="bur-dialog-title" aria-describedby="bur-dialog-subtitle" onCancel={(event) => { event.preventDefault(); onClose(); }}>
     <div className="bur-dialog-frame">
       <header className="bur-dialog-header">
-        <div><h2 id="bur-dialog-title" tabIndex={viewing ? -1 : undefined} data-initial-focus={viewing ? true : undefined}>{viewing ? "Request details" : mode === "edit" ? "Edit burial request" : "New burial request"}</h2>
+        <div><h2 id="bur-dialog-title" tabIndex={viewing ? -1 : undefined} data-initial-focus={viewing ? true : undefined}>{viewing ? "Request details" : mode === "edit" ? "Edit burial request" : "Record walk-in request"}</h2>
           <p id="bur-dialog-subtitle">{viewing ? record.reference : "Fields marked with * are required."}</p></div>
         <button type="button" className="bur-icon-button" aria-label="Close dialog" onClick={onClose}><FiX aria-hidden="true" /></button>
       </header>
       {viewing ? <>
         <div className="bur-dialog-body">
-          <div className="bur-profile"><span className="bur-avatar bur-avatar--large" aria-hidden="true">{initials(record.seniorName)}</span><div><h3>{record.seniorName}</h3><p>{record.seniorId || "Senior ID not recorded"}</p></div><StatusBadge status={record.status} /></div>
+          <div className="bur-profile"><span className="bur-avatar bur-avatar--large" aria-hidden="true">{initials(record.seniorName)}</span><div><h3>{record.seniorName}</h3><p>{record.seniorId ? `OSCA ID ${record.seniorId}` : "OSCA ID not recorded"}</p></div><StatusBadge status={record.status} /></div>
           <h3 className="bur-section-title">Deceased senior citizen</h3>
           <dl className="bur-details"><Detail label="Date of death">{formatDate(record.deathDate)}</Detail><Detail label="Purok / area">{record.purok}</Detail></dl>
           <h3 className="bur-section-title">Claimant details</h3>
@@ -454,7 +445,9 @@ async function submit(event) {
           <dl className="bur-details">
             <Detail label="Date requested">{formatDate(record.requestDate)}</Detail><Detail label="Status">{record.status}</Detail>
             <Detail label="Funeral home / provider">{record.funeralHome}</Detail>
-            {record.status === "Released" && <><Detail label="Date released">{formatDate(record.releaseDate)}</Detail><Detail label="Received by">{record.receivedBy}</Detail></>}
+            {record.status === "Released" && <><Detail label="Date released">{formatDate(record.releaseDate)}</Detail><Detail label="Received by">{record.receivedBy}</Detail>
+              <Detail label="Amount released">{record.amount ? peso(record.amount) : ""}</Detail><Detail label="Paid from fund">{record.fundReference ? `${record.fundReference} · ${record.fundName}` : ""}</Detail></>}
+            <Detail label="Submitted through">{record.source === "App" ? "Senior app" : "Walk-in (recorded by staff)"}</Detail>
           </dl>
           <h3 className="bur-section-title">Remarks</h3><p className="bur-remarks">{record.remarks || "No remarks added."}</p>
         </div>
@@ -464,7 +457,7 @@ async function submit(event) {
           {saveError && <div className="bur-message bur-message--error" role="alert"><FiAlertCircle aria-hidden="true" /><span>{saveError}</span></div>}
           <fieldset className="bur-fieldset"><legend>Deceased senior citizen</legend><div className="bur-form-grid">
             <Field name="seniorName" label="Senior’s full name" required error={errors.seniorName}><input {...inputProps("seniorName")} data-initial-focus required maxLength={100} autoComplete="off" placeholder="Enter senior’s full name" /></Field>
-            <Field name="seniorId" label="Senior ID"><input {...inputProps("seniorId")} maxLength={40} placeholder="Enter senior ID" /></Field>
+            <Field name="seniorId" label="OSCA ID"><input {...inputProps("seniorId")} maxLength={40} placeholder="Enter OSCA ID" /></Field>
             <Field name="deathDate" label="Date of death" required error={errors.deathDate}><input {...inputProps("deathDate")} type="date" required max={today()} /></Field>
             <Field name="purok" label="Purok / area"><input {...inputProps("purok")} maxLength={80} placeholder="Enter purok or area" /></Field>
           </div></fieldset>
@@ -475,10 +468,14 @@ async function submit(event) {
           </div></fieldset>
           <fieldset className="bur-fieldset"><legend>Assistance details</legend><div className="bur-form-grid">
             <Field name="requestDate" label="Date requested" required error={errors.requestDate}><input {...inputProps("requestDate")} type="date" required min={form.deathDate || undefined} max={today()} /></Field>
-            <Field name="status" label="Status" required error={errors.status}><select {...inputProps("status")} required>{Object.keys(STATUS_INFO).map((value) => <option key={value}>{value}</option>)}</select><span className="bur-field-hint">{STATUS_INFO[form.status].description}</span></Field>
+            <Field name="status" label="Status" required error={errors.status}><select {...inputProps("status")} required disabled={locked}>{Object.keys(STATUS_INFO).map((value) => <option key={value}>{value}</option>)}</select><span className="bur-field-hint">{locked ? "Released and paid from a fund. To change it, void the disbursement in Fund Management." : STATUS_INFO[form.status].description}</span></Field>
             <Field name="funeralHome" label="Funeral home / provider" wide><input {...inputProps("funeralHome")} maxLength={120} placeholder="Enter funeral home or service provider" /></Field>
             {form.status === "Released" && <>
-              <Field name="releaseDate" label="Date released" required error={errors.releaseDate}><input {...inputProps("releaseDate")} type="date" required min={form.requestDate} max={today()} /></Field>
+              {fundsError && <div className="bur-field bur-field--wide"><span className="bur-field-error">{fundsError}</span></div>}
+              <FundPayoutFields prefix="bur" program={FUND_PROGRAM} amount={form.amount} fundId={form.fundId} funds={funds} errors={errors}
+                locked={locked} lockedFund={`${record?.fundReference} · ${record?.fundName}`}
+                onChange={(name, value) => { setForm((previous) => ({ ...previous, [name]: value })); setErrors((previous) => ({ ...previous, [name]: "" })); setSaveError(""); }} />
+              <Field name="releaseDate" label="Date released" required error={errors.releaseDate}><input {...inputProps("releaseDate")} type="date" required min={form.requestDate} max={today()} disabled={locked} /></Field>
               <Field name="receivedBy" label="Received by" required error={errors.receivedBy}><input {...inputProps("receivedBy")} required maxLength={100} placeholder="Enter recipient’s full name" /><span className="bur-field-hint">Defaults to the claimant. Change this if someone else received the assistance.</span></Field>
             </>}
             <Field name="remarks" label="Remarks" wide><textarea {...inputProps("remarks")} rows={3} maxLength={1000} placeholder="Add request details or a follow-up note…" /></Field>

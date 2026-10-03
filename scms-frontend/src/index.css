@@ -1,16 +1,35 @@
+/* SCMS design tokens ("style A" mockup). Pages restyled to the mockup use
+   these directly; older pages keep their own colors until they are redone. */
 :root {
-  font-family: "Segoe UI", Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #17231c;
-  background: #f4f7f5;
-  --scms-green-950: #063d1f;
-  --scms-green-800: #0a6634;
-  --scms-green-700: #0c7a3e;
-  --scms-green-100: #dff2e5;
-  --scms-green-50: #f0f8f2;
-  --scms-ink: #17231c;
-  --scms-muted: #66736b;
-  --scms-border: #dfe7e1;
-  --scms-page: #f4f7f5;
+  --scms-font-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --scms-font-display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+
+  --scms-primary: #14532D;        /* buttons, active nav, links */
+  --scms-primary-hover: #0B3D24;
+  --scms-accent: #1B6B3A;         /* eyebrows, status dots */
+  --scms-primary-soft: #E6F2EA;   /* active nav, avatars */
+  --scms-success-soft: #DDF0E3;   /* positive status pills */
+
+  --scms-ink: #10231A;            /* headings and body text */
+  --scms-ink-2: #34463C;          /* nav items, secondary text */
+  --scms-muted: #55655C;          /* labels, hints */
+  --scms-border: #DCE5DE;         /* cards, dividers */
+  --scms-input-border: #C5D6CA;
+  --scms-button-border: #BFD3C5;
+  --scms-page: #F5F8F4;
+  --scms-surface: #FFFFFF;
+  --scms-focus: #2F8F57;
+
+  /* Older names, kept so existing pages keep working. */
+  --scms-green-950: #0B3D24;
+  --scms-green-800: #14532D;
+  --scms-green-700: #1B6B3A;
+  --scms-green-100: #DDF0E3;
+  --scms-green-50: #EEF6F0;
+
+  font-family: var(--scms-font-body);
+  color: var(--scms-ink);
+  background: var(--scms-page);
 }
 
 * { box-sizing: border-box; }

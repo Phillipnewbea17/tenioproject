@@ -1,5 +1,5 @@
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,} from "../services/api";
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   FiSearch,
   FiPlus,
@@ -18,58 +18,10 @@ import { BsPinAngleFill, BsPinAngle } from "react-icons/bs";
 import "./Announcements.css";
 
 /* ---------------------------------------------------------------- */
-/* Mock data — swap for real API data                                */
+/* Icons an announcement can use (icon_index points into this list)  */
 /* ---------------------------------------------------------------- */
 
 const ICONS = [FiUsers, FiCreditCard, FiCalendar, FiHeart, FiVolume2];
-
-const INITIAL_ANNOUNCEMENTS = [
-  {
-    id: 1,
-    title: "Free Medical Check-up",
-    date: "2026-08-15",
-    description: "We are pleased to announce a free medical check-up for all senior citizens.",
-    status: "Active",
-    pinned: true,
-    iconIndex: 4,
-  },
-  {
-    id: 2,
-    title: "Senior Citizens Assembly",
-    date: "2026-08-20",
-    description: "All senior citizens are invited to attend the assembly.",
-    status: "Active",
-    pinned: false,
-    iconIndex: 0,
-  },
-  {
-    id: 3,
-    title: "Distribution of ID Cards",
-    date: "2026-08-25",
-    description: "ID cards are now ready for release. Please bring a valid ID.",
-    status: "Active",
-    pinned: false,
-    iconIndex: 1,
-  },
-  {
-    id: 4,
-    title: "Nutrition Seminar",
-    date: "2026-08-30",
-    description: "Join us for a seminar about healthy living and nutrition.",
-    status: "Active",
-    pinned: false,
-    iconIndex: 2,
-  },
-  {
-    id: 5,
-    title: "Blood Pressure Screening",
-    date: "2026-09-05",
-    description: "Free blood pressure screening for all senior citizens.",
-    status: "Active",
-    pinned: false,
-    iconIndex: 3,
-  },
-];
 
 const PAGE_SIZE = 4;
 const SORT_OPTIONS = ["Newest First", "Oldest First"];
@@ -206,9 +158,13 @@ useEffect(() => {
     });
 }, []);
 
-  useEffect(() => {
+  // Go back to page 1 whenever the filters change.
+  const filterKey = JSON.stringify([searchQuery, sortBy]);
+  const [pageFilterKey, setPageFilterKey] = useState(filterKey);
+  if (pageFilterKey !== filterKey) {
+    setPageFilterKey(filterKey);
     setCurrentPage(1);
-  }, [searchQuery, sortBy]);
+  }
 
   const pinned = announcements.find((a) => a.pinned) || null;
 
@@ -395,10 +351,8 @@ const handleSave = async (form) => {
     <div className="announcements">
       <div className="ann-heading">
         <div className="ann-heading-left">
-          <span className="ann-heading-icon">
-            <FiVolume2 />
-          </span>
           <div>
+            <span className="ann-eyebrow">Communication</span>
             <h1>Announcements</h1>
             <p>Manage and publish announcements for senior citizens.</p>
           </div>

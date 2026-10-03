@@ -1,42 +1,70 @@
-import React, { useState } from "react";
 import {
-  FiHome,
-  FiCheckSquare,
-  FiFolder,
-  FiVolume2,
-  FiLogOut,
-  FiX,
-  FiUsers,
-} from "react-icons/fi";
-import { PiCakeDuotone } from "react-icons/pi";
+  TbActivity,
+  TbCake,
+  TbChartBar,
+  TbCurrencyPeso,
+  TbFileCheck,
+  TbFlower,
+  TbFolder,
+  TbHome,
+  TbId,
+  TbLifebuoy,
+  TbLogout,
+  TbMedicalCross,
+  TbSpeakerphone,
+  TbUsers,
+  TbWallet,
+  TbX,
+} from "react-icons/tb";
 import scmsLogo from "../assets/scms-logo.png";
 import "./Sidebar.css";
 
-const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", icon: FiHome },
-  { key: "user-management", label: "User Management", icon: FiUsers },
-  { key: "verification", label: "Document Verification", icon: FiCheckSquare },
-  { key: "records", label: "Records", icon: FiFolder },
-  { key: "announcements", label: "Announcements", icon: FiVolume2 },
-  { key: "birthday", label: "Birthday List", icon: PiCakeDuotone },
+// Grouped like the "style A" mockup. Keys match PATH_TO_KEY in AdminLayout.jsx.
+const NAV_GROUPS = [
   {
-    key: "programs",
+    label: "Overview",
+    items: [{ key: "dashboard", label: "Dashboard", icon: TbHome }],
+  },
+  {
+    label: "People and records",
+    items: [
+      { key: "user-management", label: "User Management", icon: TbUsers },
+      { key: "verification", label: "Document Verification", icon: TbFileCheck },
+      { key: "records", label: "Records", icon: TbFolder },
+      { key: "senior-ids", label: "OSCA IDs", icon: TbId },
+    ],
+  },
+  {
+    label: "Communication",
+    items: [
+      { key: "announcements", label: "Announcements", icon: TbSpeakerphone },
+      { key: "birthday", label: "Birthday List", icon: TbCake },
+      { key: "help-desk", label: "Help & Complaints", icon: TbLifebuoy },
+    ],
+  },
+  {
     label: "Program Management",
-    icon: FiFolder,
-    children: [
-      { key: "pension", label: "Pension" },
-      { key: "medical", label: "Medical" },
-      { key: "burial", label: "Burial" },
+    items: [
+      { key: "pension", label: "Pension", icon: TbWallet },
+      { key: "medical", label: "Medical", icon: TbMedicalCross },
+      { key: "burial", label: "Burial", icon: TbFlower },
+      { key: "funds", label: "Fund Management", icon: TbCurrencyPeso },
+    ],
+  },
+  {
+    label: "Monitoring",
+    items: [
+      { key: "reports", label: "Reports", icon: TbChartBar },
+      { key: "activity-log", label: "Activity Log", icon: TbActivity },
     ],
   },
 ];
 
 /**
  * Responsive behavior (see Sidebar.css):
- * - Desktop (>768px): sticky sidebar. Full width by default; collapses to an
- *   icon-only rail when the parent layout has the `sidebar-collapsed` class.
- * - Mobile (<=768px): off-canvas drawer, hidden by default and slid in over the
- *   content when `isOpen` is true.
+ * - Desktop (>768px): column beside the page. When the layout has the
+ *   sidebar-collapsed class it shrinks to an icon rail (labels become tooltips).
+ * - Mobile (<=768px): off-canvas drawer, opened from the header's menu button.
  */
 export default function Sidebar({
   activeKey = "dashboard",
@@ -45,22 +73,15 @@ export default function Sidebar({
   isOpen = false,
   onClose,
 }) {
-  // Start with Program Management open if the current page is one of its children.
-  const [programOpen, setProgramOpen] = useState(() =>
-    NAV_ITEMS.some(
-      (item) => item.children && item.children.some((c) => c.key === activeKey)
-    )
-  );
-
   const handleNavigate = (key) => {
     onNavigate && onNavigate(key);
-    // auto-close the drawer on mobile after picking a page
+    // Close the drawer on mobile after picking a page.
     onClose && onClose();
   };
 
   return (
     <>
-      {/* Dark overlay behind the drawer on mobile, click to dismiss */}
+      {/* Dark overlay behind the drawer on mobile; click to dismiss */}
       <div
         className={`sidebar-overlay${isOpen ? " visible" : ""}`}
         onClick={onClose}
@@ -70,7 +91,7 @@ export default function Sidebar({
       <aside className={`sidebar${isOpen ? " open" : ""}`}>
         <div className="sidebar-logo">
           <span className="sidebar-logo-icon">
-            <img src={scmsLogo} alt="Senior Citizen Management System logo" />
+            <img src={scmsLogo} alt="" />
           </span>
           <div className="sidebar-logo-text">
             <span className="sidebar-logo-title">Senior Citizen</span>
@@ -83,76 +104,34 @@ export default function Sidebar({
             onClick={onClose}
             aria-label="Close menu"
           >
-            <FiX />
+            <TbX />
           </button>
         </div>
 
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ key, label, icon: Icon, children }) => {
-            const childActive =
-              children && children.some((child) => child.key === activeKey);
-            const isActive = key === activeKey || childActive;
-
-            return (
-              <div key={key} className="sidebar-nav-group">
+        <nav className="sidebar-nav" aria-label="Main">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="sidebar-nav-group">
+              <div className="sidebar-nav-heading">{group.label}</div>
+              {group.items.map(({ key, label, icon: Icon }) => (
                 <button
+                  key={key}
                   type="button"
+                  className={`sidebar-nav-item${key === activeKey ? " active" : ""}`}
                   title={label}
-                  className={`sidebar-nav-item${isActive ? " active" : ""}`}
-                  onClick={() => {
-                    if (children) {
-                      setProgramOpen((open) => !open);
-                    } else {
-                      handleNavigate(key);
-                    }
-                  }}
+                  onClick={() => handleNavigate(key)}
                   aria-current={key === activeKey ? "page" : undefined}
-                  aria-expanded={children ? programOpen : undefined}
                 >
-                  <Icon className="sidebar-nav-icon" />
+                  <Icon className="sidebar-nav-icon" strokeWidth={1.8} aria-hidden="true" />
                   <span className="sidebar-nav-label">{label}</span>
-                  {children && (
-                    <span
-                      className={`sidebar-submenu-arrow${
-                        programOpen ? " open" : ""
-                      }`}
-                      aria-hidden="true"
-                    >
-                      ▾
-                    </span>
-                  )}
                 </button>
-
-                {children && programOpen && (
-                  <div className="sidebar-submenu">
-                    {children.map((child) => (
-                      <button
-                        key={child.key}
-                        type="button"
-                        className={`sidebar-submenu-item${
-                          child.key === activeKey ? " active" : ""
-                        }`}
-                        onClick={() => handleNavigate(child.key)}
-                        aria-current={child.key === activeKey ? "page" : undefined}
-                      >
-                        {child.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-footer">
-          <button
-            type="button"
-            title="Logout"
-            className="sidebar-logout"
-            onClick={onLogout}
-          >
-            <FiLogOut className="sidebar-nav-icon" />
+          <button type="button" className="sidebar-logout" onClick={onLogout} title="Logout">
+            <TbLogout className="sidebar-nav-icon" strokeWidth={1.8} aria-hidden="true" />
             <span className="sidebar-nav-label">Logout</span>
           </button>
         </div>

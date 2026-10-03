@@ -3,10 +3,28 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Application extends Model
 {
+    /** Where it came from: the senior app, or recorded by staff. */
+    public const SOURCES = ['App', 'Walk-in'];
+
+    public function appAccount(): BelongsTo
+    {
+        return $this->belongsTo(AppAccount::class);
+    }
+
+    /** Photos of papers uploaded from the app. */
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ApplicationDocument::class);
+    }
+
     protected $fillable = [
+        'source',
+        'app_account_id',
         'application_id',
         'name',
         'submitted_at',

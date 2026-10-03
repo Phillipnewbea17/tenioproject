@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Concerns\PaidFromFund;
 use Illuminate\Database\Eloquent\Model;
 
 class PensionRelease extends Model
 {
-    use HasFactory;
+    use HasFactory, PaidFromFund;
 
     protected $fillable = [
         'senior_id',

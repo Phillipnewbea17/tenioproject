@@ -13,8 +13,35 @@ const PATH_TO_KEY = {
   "/pension": "pension",
   "/user-management": "user-management",
   "/medical": "medical",
-  "/burial": "burial"
+  "/burial": "burial",
+  "/senior-ids": "senior-ids",
+  "/funds": "funds",
+  "/help-desk": "help-desk",
+  "/reports": "reports",
+  "/activity-log": "activity-log"
 };
+
+const COLLAPSED_KEY = "scms_sidebar_collapsed";
+
+// The collapsed/expanded choice is a per-browser convenience; storage can be
+// unavailable (private windows), so failures are ignored.
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function saveCollapsed(collapsed) {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, String(collapsed));
+  } catch {
+    /* ignore */
+  }
+}
+
+const isPhone = () => window.matchMedia("(max-width: 768px)").matches;
 
 const KEY_TO_PATH = Object.fromEntries(
   Object.entries(PATH_TO_KEY).map(([path, key]) => [key, path])
@@ -24,8 +51,20 @@ export default function AdminLayout({ onLogout, adminName }) {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Desktop: the menu button collapses the sidebar to an icon rail.
+  // Phones: the sidebar is a drawer that the menu button opens.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+
+  const handleMenuClick = () => {
+    if (isPhone()) {
+      setSidebarOpen((open) => !open);
+    } else {
+      const next = !sidebarCollapsed;
+      saveCollapsed(next);
+      setSidebarCollapsed(next);
+    }
+  };
 
   const activeKey = PATH_TO_KEY[location.pathname] || "dashboard";
 
@@ -33,20 +72,8 @@ export default function AdminLayout({ onLogout, adminName }) {
     navigate(KEY_TO_PATH[key] || "/dashboard");
   };
 
-  const handleMenuClick = () => {
-    if (window.matchMedia("(max-width: 768px)").matches) {
-      setSidebarOpen((open) => !open);
-    } else {
-      setSidebarCollapsed((collapsed) => !collapsed);
-    }
-  };
-
   return (
-    <div
-      className={`admin-layout${
-        sidebarCollapsed ? " sidebar-collapsed" : ""
-      }`}
-    >
+    <div className={`admin-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <Sidebar
         activeKey={activeKey}
         onNavigate={handleNavigate}
@@ -59,7 +86,7 @@ export default function AdminLayout({ onLogout, adminName }) {
         <Header
           adminName={adminName}
           onMenuClick={handleMenuClick}
-          onLogout={onLogout}
+          sidebarExpanded={!sidebarCollapsed}
         />
 
         <main className="admin-layout-main">
