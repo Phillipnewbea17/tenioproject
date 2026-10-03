@@ -15,12 +15,18 @@ import Pension from "./Pages/Pension";
 import UserManagement from "./Pages/UserManagement";
 import Medical from "./Pages/Medical";
 import Burial from "./Pages/Burial";
+import SeniorIds from "./Pages/SeniorIds";
+import Reports from "./Pages/Reports";
+import ActivityLog from "./Pages/ActivityLog";
+import Funds from "./Pages/Funds";
+import HelpDesk from "./Pages/HelpDesk";
 
 import "./index.css";
 
 const AUTH_KEY = "scms_is_authenticated";
 const NAME_KEY = "scms_admin_name";
 const TOKEN_KEY = "scms_token";
+const ROLE_KEY = "scms_role";
 
 function ProtectedRoute({ isAuthenticated, children }) {
   return isAuthenticated ? (
@@ -68,9 +74,11 @@ export default function App() {
       localStorage.removeItem(AUTH_KEY);
       localStorage.removeItem(NAME_KEY);
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(ROLE_KEY);
 
       sessionStorage.removeItem(NAME_KEY);
       sessionStorage.removeItem(TOKEN_KEY);
+      sessionStorage.removeItem(ROLE_KEY);
 
       setIsAuthenticated(false);
     }
@@ -135,6 +143,31 @@ export default function App() {
         <Route
           path="records"
           element={<Records />}
+        />
+
+        <Route
+          path="senior-ids"
+          element={<SeniorIds />}
+        />
+
+        <Route
+          path="reports"
+          element={<Reports />}
+        />
+
+        <Route
+          path="funds"
+          element={<Funds />}
+        />
+
+        <Route
+          path="help-desk"
+          element={<HelpDesk />}
+        />
+
+        <Route
+          path="activity-log"
+          element={<ActivityLog />}
         />
 
         <Route

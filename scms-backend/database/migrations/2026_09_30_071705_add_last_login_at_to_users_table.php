@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // add_management_columns_to_users_table may already have added it.
+        if (Schema::hasColumn('users', 'last_login_at')) {
+            return;
+        }
+
         Schema::table('users', function (Blueprint $table) {
             $table->timestamp('last_login_at')->nullable();
         });

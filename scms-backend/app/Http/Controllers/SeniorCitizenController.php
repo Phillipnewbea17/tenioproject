@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SeniorCitizen;
+use App\Support\ActivityLogger;
 use Illuminate\Http\Request;
 
 class SeniorCitizenController extends Controller
@@ -10,7 +11,8 @@ class SeniorCitizenController extends Controller
     public function index()
     {
         return response()->json(
-            SeniorCitizen::orderBy('created_at', 'desc')->get()
+            SeniorCitizen::with('currentOscaId')->orderBy('created_at', 'desc')->get()
+                ->map(fn (SeniorCitizen $senior) => $senior->toRecordArray())
         );
     }
 
@@ -45,12 +47,19 @@ class SeniorCitizenController extends Controller
 
     $seniorCitizen = SeniorCitizen::create($validated);
 
-    return response()->json($seniorCitizen, 201);
+    ActivityLogger::record('Senior Records', 'Created', 'Senior record added.', $seniorCitizen, $this->label($seniorCitizen));
+
+    return response()->json($seniorCitizen->toRecordArray(), 201);
 }
+
+    private function label(SeniorCitizen $senior): string
+    {
+        return "{$senior->senior_id} · {$senior->name}";
+    }
 
     public function show(SeniorCitizen $seniorCitizen)
     {
-        return response()->json($seniorCitizen);
+        return response()->json($seniorCitizen->toRecordArray());
     }
 
     public function update(Request $request, SeniorCitizen $seniorCitizen)
@@ -79,15 +88,24 @@ class SeniorCitizenController extends Controller
 
         $seniorCitizen->update($validated);
 
-        return response()->json($seniorCitizen);
+        $changes = ActivityLogger::changes($seniorCitizen);
+
+        if ($changes) {
+            ActivityLogger::record(
+                'Senior Records',
+                isset($changes['status']) ? 'Status changed' : 'Updated',
+                isset($changes['status'])
+                    ? "Record status changed to {$seniorCitizen->status}."
+                    : 'Updated ' . ActivityLogger::fieldList($changes) . '.',
+                $seniorCitizen,
+                $this->label($seniorCitizen),
+                $changes,
+            );
+        }
+
+        return response()->json($seniorCitizen->fresh()->toRecordArray());
     }
 
-    public function destroy(SeniorCitizen $seniorCitizen)
-    {
-        $seniorCitizen->delete();
-
-        return response()->json([
-            'message' => 'Senior citizen deleted successfully.'
-        ]);
-    }
+    // No destroy(): senior records are kept permanently. Use status
+    // "Archived" (or "Deceased") instead; see routes/api.php.
 }

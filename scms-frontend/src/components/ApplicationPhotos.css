@@ -1,0 +1,57 @@
+/* Uploaded photos in the Document Verification drawer ("style A" tokens). */
+.ap { margin-bottom: 20px; }
+
+.ap-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ap-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.ap-head span { color: var(--scms-muted); font-size: 13px; }
+
+.ap-note { margin: 0; color: var(--scms-muted); font-size: 14px; }
+.ap-note--error { color: #8E2F22; }
+
+.ap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.ap-photo {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 12px;
+  background: var(--scms-surface);
+}
+
+.ap-photo a { display: block; }
+.ap-photo a:focus-visible { outline: 3px solid var(--scms-focus); outline-offset: -3px; }
+
+.ap-photo img,
+.ap-placeholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--scms-page);
+}
+
+.ap-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--scms-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.ap-photo figcaption { display: flex; flex-direction: column; padding: 8px 10px 10px; }
+.ap-photo figcaption strong { font-size: 13.5px; }
+.ap-photo figcaption span { color: var(--scms-muted); font-size: 12px; }

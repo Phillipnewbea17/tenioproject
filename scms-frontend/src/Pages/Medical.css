@@ -1,19 +1,17 @@
-/* All styles belong to Medical.jsx; other SCMS pages keep their own styles. */
+/* Medical Assistance ("style A" mockup). Colors and fonts come from index.css.
+   Burial.css is generated from this file with the bur- prefix. */
 .scms-medical {
-  --med-green: #1f7a3d;
-  --med-green-dark: #15592c;
-  --med-green-soft: #eaf5ed;
-  --med-text: #21302a;
-  --med-muted: #64736b;
-  --med-border: #e2e9e4;
-  --med-page: #f6f8f7;
-  min-height: 100%;
   width: 100%;
-  padding: 28px 28px 36px;
-  background: var(--med-page);
-  color: var(--med-text);
-  font-family: "Segoe UI", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 14px;
+  max-width: 1180px;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  color: var(--scms-ink);
+  font-family: var(--scms-font-body);
+  font-size: 16px;
   line-height: 1.5;
   text-align: left;
 }
@@ -28,357 +26,535 @@
 .scms-medical textarea { font: inherit; }
 
 .scms-medical button { cursor: pointer; }
-.scms-medical button:disabled { cursor: not-allowed; opacity: 0.48; }
+.scms-medical button:disabled { cursor: not-allowed; opacity: 0.5; }
 .scms-medical button:focus-visible,
 .scms-medical input:focus-visible,
 .scms-medical select:focus-visible,
 .scms-medical textarea:focus-visible {
-  outline: 3px solid #7db78e;
-  outline-offset: 3px;
+  outline: 3px solid var(--scms-focus);
+  outline-offset: 2px;
 }
 
+/* ---------- Page heading ---------- */
 .scms-medical .med-page-header {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 25px;
 }
-
+.scms-medical .med-page-header > div { display: flex; flex-direction: column; gap: 6px; }
 .scms-medical .med-eyebrow {
-  margin: 0 0 5px;
-  color: var(--med-green);
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.055em;
+  margin: 0;
+  color: var(--scms-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-
 .scms-medical h1 {
   margin: 0;
-  color: #183d29;
-  font-size: clamp(24px, 2.4vw, 29px);
+  font-family: var(--scms-font-display);
+  font-size: 42px;
   font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.65px;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
+.scms-medical .med-subtitle { margin: 4px 0 0; color: var(--scms-muted); font-size: 17px; }
 
-.scms-medical .med-subtitle { margin: 8px 0 0; color: var(--med-muted); }
+/* ---------- Buttons ---------- */
 .scms-medical .med-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 17px;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 22px;
   border: 1px solid transparent;
-  border-radius: 9px;
-  font-size: 14px;
+  border-radius: 10px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.35;
-  text-decoration: none;
   white-space: nowrap;
   transition: background 140ms ease, border-color 140ms ease;
 }
-.scms-medical .med-button svg { flex-shrink: 0; width: 17px; height: 17px; }
-.scms-medical .med-button--primary { background: var(--med-green); color: #fff; }
-.scms-medical .med-button--primary:hover:not(:disabled) { background: var(--med-green-dark); }
-.scms-medical .med-button--secondary { background: #fff; border-color: #ccd7cf; color: #34483b; }
-.scms-medical .med-button--secondary:hover:not(:disabled) { background: #f2f7f3; border-color: #91b79e; }
+.scms-medical .med-button svg { flex-shrink: 0; width: 20px; height: 20px; }
+.scms-medical .med-button--primary { background: var(--scms-primary); color: #fff; }
+.scms-medical .med-button--primary:hover:not(:disabled) { background: var(--scms-primary-hover); }
+.scms-medical .med-button--secondary { background: #fff; border-color: var(--scms-button-border); color: var(--scms-primary); }
+.scms-medical .med-button--secondary:hover:not(:disabled) { background: var(--scms-page); }
+.scms-medical .med-button--danger { background: #A33A2C; color: #fff; }
+.scms-medical .med-button--danger:hover:not(:disabled) { background: #8C2B20; }
+.scms-medical .med-button--ghost-danger { padding: 0 14px; background: transparent; color: #A33A2C; }
+.scms-medical .med-button--ghost-danger:hover:not(:disabled) { background: #FBEFED; }
+.scms-medical .med-footer-start { margin-right: auto; }
+.scms-medical .med-text-button {
+  border: 0;
+  padding: 8px 4px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--scms-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+.scms-medical .med-text-button:hover { text-decoration: underline; }
+.scms-medical .med-icon-button {
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--scms-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--scms-ink-2);
+  font-size: 20px;
+}
+.scms-medical .med-icon-button:hover:not(:disabled) { background: var(--scms-page); }
 
-/* Summary */
+/* ---------- Messages ---------- */
+.scms-medical .med-message {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 15px;
+}
+.scms-medical .med-message > svg { flex-shrink: 0; width: 20px; height: 20px; }
+.scms-medical .med-message > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.scms-medical .med-message--success { background: #EEF7F0; border-color: #C8E0CF; color: var(--scms-primary); }
+.scms-medical .med-message--error { background: #FBEFED; border-color: #EBC6C0; color: #8E2F22; }
+.scms-medical .med-message .med-icon-button { width: 36px; height: 36px; border: 0; background: transparent; color: inherit; }
+
+/* ---------- Summary strip: cells joined by 1px border-colored gaps ---------- */
 .scms-medical .med-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 16px;
+  background: var(--scms-border);
 }
 .scms-medical .med-stat {
-  display: flex;
+  flex: 1 1 220px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "icon label" "value value";
   align-items: center;
-  gap: 15px;
-  min-width: 0;
-  padding: 20px;
-  border: 1px solid var(--med-border);
-  border-radius: 12px;
+  column-gap: 10px;
+  row-gap: 8px;
+  padding: 24px 28px;
   background: #fff;
 }
-.scms-medical .med-stat-icon {
-  display: grid;
-  flex: 0 0 45px;
-  width: 45px;
-  height: 45px;
-  place-items: center;
-  border-radius: 12px;
-  font-size: 21px;
+.scms-medical .med-stat > div { display: contents; }
+.scms-medical .med-stat-icon { grid-area: icon; display: flex; color: var(--scms-muted); }
+.scms-medical .med-stat-icon svg { width: 20px; height: 20px; }
+.scms-medical .med-stat-label { grid-area: label; color: var(--scms-muted); font-size: 14.5px; font-weight: 500; }
+.scms-medical .med-stat-value {
+  grid-area: value;
+  font-family: var(--scms-font-display);
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
-.scms-medical .med-stat-icon--neutral { color: #536c5e; background: #f0f4f1; }
-.scms-medical .med-stat-icon--pending { color: #94620d; background: #fff4db; }
-.scms-medical .med-stat-icon--approved { color: #2863a0; background: #eaf2fc; }
-.scms-medical .med-stat-icon--completed { color: var(--med-green); background: var(--med-green-soft); }
-.scms-medical .med-stat-label { display: block; color: var(--med-muted); font-size: 13px; }
-.scms-medical .med-stat-value { display: block; margin-top: 2px; font-size: 28px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.scms-medical .med-stat-icon--approved + div .med-stat-value { color: var(--scms-primary); }
 
-/* Request list and filters */
-.scms-medical .med-panel { border: 1px solid var(--med-border); border-radius: 14px; background: #fff; }
+/* ---------- Requests panel ---------- */
+.scms-medical .med-panel {
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 16px;
+  background: #fff;
+}
 .scms-medical .med-panel-heading {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 14px;
-  padding: 22px 24px 18px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 28px 28px 20px;
 }
-.scms-medical .med-panel-heading h2 { margin: 0; font-size: 17px; font-weight: 650; }
-.scms-medical .med-panel-heading p { margin: 4px 0 0; color: var(--med-muted); font-size: 13px; }
-.scms-medical .med-sort { display: flex; align-items: center; gap: 8px; }
-.scms-medical .med-sort label { color: var(--med-muted); font-size: 12px; white-space: nowrap; }
-.scms-medical .med-sort select { width: 132px; min-height: 38px; font-size: 13px; }
-.scms-medical .med-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 0 24px 22px; }
-.scms-medical .med-search-group { flex: 1 1 260px; min-width: 0; }
-.scms-medical .med-toolbar label { display: block; margin-bottom: 6px; color: #526359; font-size: 12px; font-weight: 600; }
+.scms-medical .med-panel-heading h2 {
+  margin: 0;
+  font-family: var(--scms-font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.scms-medical .med-panel-heading p { margin: 2px 0 0; color: var(--scms-muted); font-size: 15px; }
+.scms-medical .med-sort { display: flex; align-items: center; gap: 12px; }
+.scms-medical .med-sort label { color: var(--scms-muted); font-size: 14px; font-weight: 600; white-space: nowrap; }
+.scms-medical .med-sort select { min-width: 176px; }
+
+.scms-medical .med-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; padding: 0 28px 28px; }
+.scms-medical .med-search-group { flex: 3 1 320px; min-width: 0; }
+.scms-medical .med-filter { flex: 1 1 180px; min-width: 0; }
+.scms-medical .med-toolbar label { display: block; margin-bottom: 6px; color: var(--scms-muted); font-size: 13px; font-weight: 600; }
 .scms-medical .med-search-box { position: relative; }
-.scms-medical .med-search-box > svg { position: absolute; top: 50%; left: 13px; width: 17px; height: 17px; transform: translateY(-50%); color: #738279; pointer-events: none; }
-.scms-medical .med-search-box input { padding-left: 39px; }
-.scms-medical .med-filter { flex: 0 1 168px; min-width: 130px; }
+.scms-medical .med-search-box > svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+  transform: translateY(-50%);
+  color: var(--scms-muted);
+  pointer-events: none;
+}
+.scms-medical .med-search-box input { padding-left: 44px; }
+.scms-medical .med-reset { min-height: 48px; white-space: nowrap; }
+
+/* ---------- Form controls ---------- */
 .scms-medical input,
 .scms-medical select,
 .scms-medical textarea {
   display: block;
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 48px;
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid #cbd6ce;
-  border-radius: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--scms-input-border);
+  border-radius: 10px;
   background: #fff;
-  color: var(--med-text);
-  line-height: 1.45;
+  color: var(--scms-ink);
+  font-size: 15px;
   box-shadow: none;
   transition: border-color 140ms ease;
 }
-.scms-medical select { padding-right: 25px; cursor: pointer; }
+.scms-medical textarea { min-height: 96px; padding: 12px 14px; line-height: 1.5; resize: vertical; }
+.scms-medical select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2355655C' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  cursor: pointer;
+}
 .scms-medical input::placeholder,
-.scms-medical textarea::placeholder { color: #77827c; opacity: 1; }
+.scms-medical textarea::placeholder { color: #6E7C74; opacity: 1; }
 .scms-medical input:hover,
 .scms-medical select:hover,
-.scms-medical textarea:hover { border-color: #9fb4a5; }
+.scms-medical textarea:hover { border-color: #9DB5A4; }
 .scms-medical input:focus,
 .scms-medical select:focus,
-.scms-medical textarea:focus { border-color: var(--med-green); }
-.scms-medical .med-text-button { border: 0; padding: 8px 3px; border-radius: 4px; background: transparent; color: var(--med-green-dark); font-weight: 600; font-size: 13px; }
-.scms-medical .med-text-button:hover { text-decoration: underline; }
-.scms-medical .med-reset { min-height: 44px; white-space: nowrap; }
+.scms-medical textarea:focus { border-color: var(--scms-primary); }
+.scms-medical [aria-invalid="true"] { border-color: #B8483A; background-color: #FFFAF9; }
 
-/* Visible actions avoid dropdowns being clipped by the table. */
+/* ---------- Table ---------- */
 .scms-medical .med-table-wrap { overflow-x: auto; }
-.scms-medical .med-table { width: 100%; border-collapse: collapse; text-align: left; }
+.scms-medical .med-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 15px; text-align: left; }
 .scms-medical .med-table th {
-  padding: 13px 15px;
-  border-top: 1px solid var(--med-border);
-  border-bottom: 1px solid var(--med-border);
-  background: #f8faf8;
-  color: #596b5f;
-  font-size: 12px;
-  font-weight: 650;
+  padding: 14px 16px;
+  border-top: 1px solid var(--scms-border);
+  border-bottom: 1px solid var(--scms-border);
+  background: var(--scms-page);
+  color: var(--scms-muted);
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
 }
-.scms-medical .med-table td { padding: 17px 15px; border-bottom: 1px solid #edf1ee; font-size: 13px; vertical-align: middle; }
+.scms-medical .med-table td { padding: 18px 16px; border-bottom: 1px solid var(--scms-border); vertical-align: middle; }
 .scms-medical .med-table th:first-child,
-.scms-medical .med-table td:first-child { padding-left: 24px; }
+.scms-medical .med-table td:first-child { padding-left: 28px; }
 .scms-medical .med-table th:last-child,
-.scms-medical .med-table td:last-child { padding-right: 24px; }
+.scms-medical .med-table td:last-child { padding-right: 28px; }
 .scms-medical .med-table tbody tr:last-child td { border-bottom: 0; }
-.scms-medical .med-table tbody tr:hover { background: #fafcfb; }
-.scms-medical .med-person { display: flex; align-items: center; gap: 11px; min-width: 190px; }
-.scms-medical .med-avatar { display: grid; place-items: center; flex: 0 0 39px; width: 39px; height: 39px; border-radius: 50%; background: #edf4ee; color: #366044; font-size: 12px; font-weight: 700; }
-.scms-medical .med-person strong { display: block; max-width: 245px; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
-.scms-medical .med-person div > span { display: block; max-width: 245px; margin-top: 3px; color: var(--med-muted); font-size: 11px; overflow-wrap: anywhere; }
-.scms-medical .med-cell-stack > span { display: block; font-weight: 500; }
-.scms-medical .med-cell-stack small { display: block; max-width: 200px; margin-top: 3px; color: var(--med-muted); font-size: 12px; overflow-wrap: anywhere; }
-.scms-medical .med-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.scms-medical .med-status { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
-.scms-medical .med-status > span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.scms-medical .med-status--pending { background: #fff4dc; color: #875b0b; }
-.scms-medical .med-status--approved { background: #eaf2fd; color: #2b609a; }
-.scms-medical .med-status--completed { background: #eaf5ec; color: #256839; }
-.scms-medical .med-status--hold { background: #f1edf9; color: #6b4e91; }
+.scms-medical .med-table tbody tr:hover { background: #FAFCFA; }
+.scms-medical .med-person { display: flex; align-items: center; gap: 14px; min-width: 200px; }
+.scms-medical .med-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--scms-primary-soft);
+  color: var(--scms-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+.scms-medical .med-person > div { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.scms-medical .med-person strong { font-weight: 600; overflow-wrap: anywhere; }
+.scms-medical .med-person div > span { color: var(--scms-muted); font-size: 13px; overflow-wrap: anywhere; }
+.scms-medical .med-cell-stack { display: flex; flex-direction: column; line-height: 1.3; }
+.scms-medical .med-cell-stack > span { overflow-wrap: anywhere; }
+.scms-medical .med-cell-stack small { margin-top: 2px; color: var(--scms-muted); font-size: 13px; overflow-wrap: anywhere; }
+/* Source tag: app request vs walk-in recorded by staff (text, not just color). */
+.scms-medical .med-source {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.scms-medical .med-source--app { background: var(--scms-primary-soft); color: var(--scms-primary); }
+.scms-medical .med-source--walkin { background: #EEF1EF; color: var(--scms-ink-2); }
+.scms-medical .med-locked { padding: 12px 14px; border: 1px solid var(--scms-border); border-radius: 10px; background: var(--scms-page); color: var(--scms-ink-2); font-size: 15px; }
+.scms-medical .med-date { color: var(--scms-ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Status pills: text + dot, so color is never the only cue. */
+.scms-medical .med-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.scms-medical .med-status > span { width: 8px; height: 8px; border-radius: 50%; }
+.scms-medical .med-status--pending { background: #FDF0D5; color: #6F4600; }
+.scms-medical .med-status--pending > span { background: #B7791F; }
+.scms-medical .med-status--approved { background: var(--scms-success-soft); color: var(--scms-primary); }
+.scms-medical .med-status--approved > span { background: var(--scms-accent); }
+.scms-medical .med-status--completed { background: #E2ECF7; color: #1D4A7E; }
+.scms-medical .med-status--completed > span { background: #2F6DB5; }
+.scms-medical .med-status--hold { background: #EEEAF5; color: #4F3B78; }
+.scms-medical .med-status--hold > span { background: #7A5DB0; }
+
 .scms-medical .med-actions-heading { text-align: right; }
-.scms-medical .med-row-actions { display: flex; justify-content: flex-end; gap: 5px; }
-.scms-medical .med-row-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 7px 9px; border: 1px solid #dce5df; border-radius: 7px; background: #fff; color: #3d5645; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.scms-medical .med-row-button svg { width: 14px; height: 14px; }
-.scms-medical .med-row-button:hover { border-color: #9bbea5; background: #f0f7f1; color: var(--med-green-dark); }
-.scms-medical .med-table-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; min-height: 68px; padding: 14px 24px; border-top: 1px solid var(--med-border); }
-.scms-medical .med-table-footer p { margin: 0; color: var(--med-muted); font-size: 12px; }
+.scms-medical .med-row-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.scms-medical .med-row-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--scms-button-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--scms-primary);
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.scms-medical .med-row-button svg { width: 18px; height: 18px; }
+.scms-medical .med-row-button:hover { background: var(--scms-page); border-color: #9DB5A4; }
+.scms-medical .med-row-button--danger { border-color: #E7C4BF; color: #A33A2C; }
+.scms-medical .med-row-button--danger:hover { background: #FBEFED; border-color: #D99B92; }
+
+.scms-medical .med-table-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--scms-border);
+}
+.scms-medical .med-table-footer p { margin: 0; color: var(--scms-muted); font-size: 14px; }
 .scms-medical .med-pagination { display: flex; align-items: center; gap: 12px; }
-.scms-medical .med-pagination > span { color: #53675b; font-size: 12px; }
-.scms-medical .med-icon-button { display: inline-grid; flex-shrink: 0; place-items: center; width: 38px; height: 38px; padding: 0; border: 1px solid var(--med-border); border-radius: 8px; background: #fff; color: #4f6457; font-size: 18px; }
-.scms-medical .med-icon-button:hover:not(:disabled) { background: #edf5ef; border-color: #a8c5b0; }
-.scms-medical .med-storage-note { margin: 14px 2px 0; color: var(--med-muted); font-size: 12px; }
+.scms-medical .med-pagination > span { color: var(--scms-ink-2); font-size: 14px; }
 
-/* Empty states and feedback */
-.scms-medical .med-empty { display: flex; align-items: center; flex-direction: column; padding: 46px 20px 50px; border-top: 1px solid var(--med-border); text-align: center; }
-.scms-medical .med-empty-icon { display: grid; place-items: center; width: 62px; height: 62px; margin-bottom: 17px; border-radius: 18px; background: var(--med-green-soft); color: var(--med-green); font-size: 27px; }
-.scms-medical .med-empty h3 { margin: 0; font-size: 17px; font-weight: 600; }
-.scms-medical .med-empty p { max-width: 340px; margin: 7px 0 21px; color: var(--med-muted); font-size: 13px; }
-.scms-medical .med-message { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding: 11px 14px; border: 1px solid; border-radius: 9px; font-size: 13px; }
-.scms-medical .med-message > svg { flex-shrink: 0; width: 18px; height: 18px; }
-.scms-medical .med-message > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.scms-medical .med-message--success { background: #eff8f1; border-color: #cbe3d1; color: #255c36; }
-.scms-medical .med-message--error { background: #fff3f1; border-color: #edc9c3; color: #983e31; }
-.scms-medical .med-message .med-icon-button { width: 30px; height: 30px; border: 0; background: transparent; }
+/* ---------- Empty state ---------- */
+.scms-medical .med-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 20px 52px;
+  border-top: 1px solid var(--scms-border);
+  text-align: center;
+}
+.scms-medical .med-empty > svg { width: 28px; height: 28px; margin-bottom: 12px; color: var(--scms-muted); }
+.scms-medical .med-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  border-radius: 50%;
+  background: var(--scms-primary-soft);
+  color: var(--scms-primary);
+  font-size: 28px;
+}
+.scms-medical .med-empty h3 { margin: 0; font-family: var(--scms-font-display); font-size: 20px; font-weight: 700; }
+.scms-medical .med-empty p { max-width: 360px; margin: 6px 0 20px; color: var(--scms-muted); font-size: 15px; }
 
-/* Native dialog provides keyboard focus trapping and Escape support. */
-.scms-medical .scms-medical-dialog {
-  width: min(700px, calc(100% - 32px));
+/* ---------- Dialog (native <dialog>: focus trap and Escape built in) ---------- */
+.scms-medical .scms-medical-dialog,
+.scms-medical .med-dialog {
+  width: min(720px, calc(100% - 32px));
   max-width: none;
   max-height: calc(100dvh - 48px);
   margin: auto;
   padding: 0;
   overflow: hidden;
-  border: 1px solid #e0e8e2;
+  border: 1px solid var(--scms-border);
   border-radius: 16px;
   background: #fff;
-  color: var(--med-text);
+  color: var(--scms-ink);
   font: inherit;
   text-align: left;
-  box-shadow: 0 24px 90px rgb(18 42 27 / 22%);
+  box-shadow: 0 24px 80px rgba(16, 35, 26, 0.22);
 }
-.scms-medical .scms-medical-dialog::backdrop { background: rgb(19 35 26 / 45%); backdrop-filter: blur(3px); }
+.scms-medical .scms-medical-dialog::backdrop,
+.scms-medical .med-dialog::backdrop { background: rgba(16, 35, 26, 0.45); }
 .scms-medical .med-dialog-frame { display: flex; flex-direction: column; max-height: calc(100dvh - 50px); }
-.scms-medical .med-dialog-header { display: flex; flex-shrink: 0; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 23px 26px 20px; border-bottom: 1px solid var(--med-border); }
-.scms-medical .med-dialog-header h2 { margin: 0; color: #213d2b; font-size: 21px; line-height: 1.35; font-weight: 650; letter-spacing: -0.3px; }
-.scms-medical .med-dialog-header p { margin: 6px 0 0; color: var(--med-muted); font-size: 13px; }
+.scms-medical .med-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--scms-border);
+}
+.scms-medical .med-dialog-header h2 {
+  margin: 0;
+  font-family: var(--scms-font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+.scms-medical .med-dialog-header h2:focus { outline: none; }
+.scms-medical .med-dialog-header p { margin: 4px 0 0; color: var(--scms-muted); font-size: 15px; }
 .scms-medical .med-form { display: flex; flex-direction: column; min-height: 0; }
-.scms-medical .med-dialog-body { min-height: 0; padding: 24px 26px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.scms-medical .med-fieldset { min-width: 0; margin: 0 0 25px; padding: 0; border: 0; }
+.scms-medical .med-dialog-body { min-height: 0; padding: 24px 28px; overflow-y: auto; overscroll-behavior: contain; }
+.scms-medical .med-dialog-footer {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--scms-border);
+  background: var(--scms-page);
+}
+
+.scms-medical .med-fieldset { min-width: 0; margin: 0 0 28px; padding: 0; border: 0; }
 .scms-medical .med-fieldset:last-child { margin-bottom: 0; }
-.scms-medical .med-fieldset legend { width: 100%; margin-bottom: 16px; padding: 0 0 10px; border-bottom: 1px solid #edf1ee; color: #304d3a; font-size: 14px; font-weight: 650; }
-.scms-medical .med-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 18px 20px; }
-.scms-medical .med-field { display: flex; flex-direction: column; min-width: 0; gap: 7px; }
+.scms-medical .med-fieldset legend {
+  width: 100%;
+  margin-bottom: 16px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--scms-border);
+  font-family: var(--scms-font-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+.scms-medical .med-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 20px; }
+.scms-medical .med-field { display: flex; flex-direction: column; min-width: 0; gap: 6px; }
 .scms-medical .med-field--wide { grid-column: 1 / -1; }
-.scms-medical .med-field label { color: #374d3f; font-size: 13px; font-weight: 600; }
-.scms-medical .med-required { color: #b74a36; }
-.scms-medical .med-optional { color: var(--med-muted); font-size: 11px; font-weight: 400; }
-.scms-medical textarea { min-height: 90px; resize: vertical; }
-.scms-medical .med-field-hint { color: var(--med-muted); font-size: 11px; }
-.scms-medical .med-field-error { color: #aa3529; font-size: 12px; }
-.scms-medical [aria-invalid="true"] { border-color: #c96153; background: #fffafa; }
-.scms-medical .med-dialog-footer { display: flex; flex-shrink: 0; align-items: center; justify-content: flex-end; gap: 10px; padding: 17px 26px; border-top: 1px solid var(--med-border); background: #fbfcfb; }
+.scms-medical .med-field label { color: var(--scms-ink-2); font-size: 14px; font-weight: 600; }
+.scms-medical .med-required { color: #A33A2C; }
+.scms-medical .med-optional { color: var(--scms-muted); font-size: 13px; font-weight: 400; }
+.scms-medical .med-field-hint { color: var(--scms-muted); font-size: 13px; }
+.scms-medical .med-field-error { color: #A33A2C; font-size: 13.5px; font-weight: 500; }
 
 /* Read-only details */
-.scms-medical .med-profile { display: flex; align-items: center; flex-wrap: wrap; gap: 13px; margin-bottom: 25px; padding: 17px; border: 1px solid #dce9df; border-radius: 11px; background: #f5faf6; }
-.scms-medical .med-avatar--large { flex-basis: 46px; width: 46px; height: 46px; background: #e0efe4; font-size: 15px; }
-.scms-medical .med-profile > div { flex: 1; min-width: 110px; }
-.scms-medical .med-profile h3 { margin: 0; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
-.scms-medical .med-profile p { margin: 3px 0 0; color: var(--med-muted); font-size: 12px; overflow-wrap: anywhere; }
-.scms-medical .med-section-title { margin: 22px 0 14px; color: #385342; font-size: 14px; font-weight: 650; }
-.scms-medical .med-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 0; }
-.scms-medical .med-detail dt { margin: 0 0 5px; color: var(--med-muted); font-size: 12px; }
-.scms-medical .med-detail dd { margin: 0; font-size: 14px; font-weight: 500; overflow-wrap: anywhere; white-space: pre-wrap; }
-.scms-medical .med-remarks { margin: 0; padding: 13px 15px; border: 1px solid var(--med-border); border-radius: 9px; background: #f9fbf9; color: #4e6355; font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
-.scms-medical .med-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.scms-medical .med-profile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--scms-border);
+  border-radius: 12px;
+  background: var(--scms-page);
+}
+.scms-medical .med-avatar--large { flex-basis: 52px; width: 52px; height: 52px; font-size: 18px; }
+.scms-medical .med-profile > div { flex: 1; min-width: 120px; }
+.scms-medical .med-profile h3 { margin: 0; font-family: var(--scms-font-display); font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+.scms-medical .med-profile p { margin: 2px 0 0; color: var(--scms-muted); font-size: 14px; }
+.scms-medical .med-section-title { margin: 24px 0 12px; font-family: var(--scms-font-display); font-size: 18px; font-weight: 700; }
+.scms-medical .med-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; margin: 0; }
+.scms-medical .med-detail dt { margin: 0 0 4px; color: var(--scms-muted); font-size: 13px; font-weight: 600; }
+.scms-medical .med-detail dd { margin: 0; font-size: 15px; font-weight: 500; overflow-wrap: anywhere; white-space: pre-wrap; }
+.scms-medical .med-remarks {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--scms-border);
+  border-radius: 10px;
+  background: var(--scms-page);
+  color: var(--scms-ink-2);
+  font-size: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 
-/* Tablet */
+.scms-medical .med-confirm-text { margin: 0; font-size: 16px; }
+.scms-medical .med-confirm-note { margin: 12px 0 0; color: var(--scms-muted); font-size: 14px; }
+.scms-medical .med-dialog-body > .med-message { margin-bottom: 16px; }
+
+.scms-medical .med-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Tablet ---------- */
 @media (max-width: 1100px) {
-  .scms-medical { padding: 24px 20px 32px; }
-  .scms-medical .med-stats { gap: 12px; }
-  .scms-medical .med-stat { gap: 10px; padding: 16px; }
-  .scms-medical .med-table { min-width: 850px; }
-}
-@media (max-width: 800px) {
-  .scms-medical .med-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .scms-medical .med-page-header { align-items: flex-start; }
-  .scms-medical .med-search-group { flex-basis: 100%; }
-  .scms-medical .med-filter { flex: 1; }
+  .scms-medical { padding: 32px 24px; gap: 28px; }
+  .scms-medical h1 { font-size: 36px; }
 }
 
-/* On phones each table row becomes a readable request card. */
-@media (max-width: 600px) {
-  .scms-medical { padding: 20px 14px 28px; }
-  .scms-medical .med-page-header { flex-direction: column; gap: 16px; margin-bottom: 20px; }
+/* ---------- Phones: each table row becomes a card ---------- */
+@media (max-width: 640px) {
+  .scms-medical { padding: 24px 16px 32px; gap: 24px; }
+  .scms-medical h1 { font-size: 32px; }
+  .scms-medical .med-subtitle { font-size: 16px; }
   .scms-medical .med-page-header > .med-button { width: 100%; }
-  .scms-medical .med-subtitle { font-size: 13px; }
-  .scms-medical .med-stats { gap: 10px; margin-bottom: 20px; }
-  .scms-medical .med-stat { padding: 14px 12px; }
-  .scms-medical .med-stat-icon { flex-basis: 35px; width: 35px; height: 35px; border-radius: 9px; font-size: 18px; }
-  .scms-medical .med-stat-label { font-size: 11px; }
-  .scms-medical .med-stat-value { font-size: 25px; }
-  .scms-medical .med-panel-heading { align-items: flex-start; padding: 19px 16px 17px; }
-  .scms-medical .med-toolbar { gap: 12px 10px; padding: 0 16px 18px; }
-  .scms-medical .med-filter { min-width: 0; }
-  .scms-medical .med-reset { width: 100%; min-height: 32px; text-align: left; }
+  .scms-medical .med-stat { flex-basis: calc(50% - 1px); padding: 18px 16px; }
+  .scms-medical .med-stat-value { font-size: 36px; }
+  .scms-medical .med-panel-heading { padding: 22px 16px 16px; }
+  .scms-medical .med-sort { width: 100%; }
+  .scms-medical .med-sort select { flex: 1; min-width: 0; }
+  .scms-medical .med-toolbar { padding: 0 16px 20px; gap: 12px; }
+  .scms-medical .med-filter { flex-basis: calc(50% - 6px); }
+  .scms-medical .med-reset { min-height: 36px; }
   .scms-medical input,
   .scms-medical select,
   .scms-medical textarea { font-size: 16px; }
-  .scms-medical .med-sort select { font-size: 14px; }
+
   .scms-medical .med-table-wrap { overflow: visible; }
   .scms-medical .med-table,
   .scms-medical .med-table tbody { display: block; width: 100%; min-width: 0; }
-  .scms-medical .med-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-  .scms-medical .med-table tbody tr { display: block; margin: 0 14px 14px; padding: 15px; border: 1px solid var(--med-border); border-radius: 10px; }
+  .scms-medical .med-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .scms-medical .med-table tbody tr { display: block; margin: 0 16px 16px; padding: 16px; border: 1px solid var(--scms-border); border-radius: 12px; }
   .scms-medical .med-table td,
   .scms-medical .med-table td:first-child,
   .scms-medical .med-table td:last-child { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 8px 0; border: 0; }
-  .scms-medical .med-table td[data-label]::before { content: attr(data-label); flex: 0 0 76px; padding-top: 2px; color: var(--med-muted); font-size: 12px; }
+  .scms-medical .med-table td[data-label]::before { content: attr(data-label); flex: 0 0 90px; color: var(--scms-muted); font-size: 13px; font-weight: 600; }
   .scms-medical .med-table td[data-label] > * { min-width: 0; text-align: right; }
-  .scms-medical .med-table td.med-person-cell { padding: 0 0 12px; margin-bottom: 7px; border-bottom: 1px solid #edf1ee; }
+  .scms-medical .med-table td.med-person-cell { padding: 0 0 12px; margin-bottom: 4px; border-bottom: 1px solid var(--scms-border); }
   .scms-medical .med-person { min-width: 0; }
-  .scms-medical .med-person > div { min-width: 0; }
-  .scms-medical .med-person strong { max-width: none; font-size: 14px; }
-  .scms-medical .med-person div > span { max-width: none; }
-  .scms-medical .med-table td.med-actions-cell { padding: 12px 0 0; margin-top: 7px; border-top: 1px solid #edf1ee; }
-  .scms-medical .med-row-actions { width: 100%; gap: 10px; }
-  .scms-medical .med-row-button { flex: 1; min-height: 42px; font-size: 13px; }
-  .scms-medical .med-table-footer { padding: 14px 16px; }
-  .scms-medical .med-empty { padding: 35px 20px 40px; }
-  .scms-medical .scms-medical-dialog { width: calc(100% - 20px); max-height: calc(100dvh - 24px); border-radius: 12px; }
-  .scms-medical .med-dialog-frame { max-height: calc(100dvh - 26px); }
-  .scms-medical .med-dialog-header { padding: 19px 18px 17px; }
-  .scms-medical .med-dialog-header h2 { font-size: 20px; }
-  .scms-medical .med-dialog-body { padding: 20px 18px; }
-  .scms-medical .med-form-grid { grid-template-columns: 1fr; gap: 17px; }
-  .scms-medical .med-fieldset { margin-bottom: 24px; }
-  .scms-medical .med-dialog-footer { padding: 15px 18px; }
-  .scms-medical .med-dialog-footer .med-button { flex: 1; min-width: 0; padding-right: 10px; padding-left: 10px; }
-  .scms-medical .med-details { gap: 18px 14px; }
+  .scms-medical .med-table td.med-actions-cell { padding: 12px 0 0; margin-top: 4px; border-top: 1px solid var(--scms-border); }
+  .scms-medical .med-row-actions { width: 100%; }
+  .scms-medical .med-row-button { flex: 1; }
+  .scms-medical .med-table-footer { padding: 16px; }
+
+  .scms-medical .scms-medical-dialog,
+  .scms-medical .med-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); border-radius: 14px; }
+  .scms-medical .med-dialog-frame { max-height: calc(100dvh - 18px); }
+  .scms-medical .med-dialog-header,
+  .scms-medical .med-dialog-body,
+  .scms-medical .med-dialog-footer { padding-left: 16px; padding-right: 16px; }
+  .scms-medical .med-form-grid,
+  .scms-medical .med-details { grid-template-columns: 1fr; }
+  .scms-medical .med-dialog-footer .med-button { flex: 1; min-width: 0; padding: 0 12px; }
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .scms-medical *, .scms-medical *::before, .scms-medical *::after { transition: none; scroll-behavior: auto; }
-}
-.scms-medical-dialog {
-  width: min(760px, calc(100vw - 2rem));
-  max-width: calc(100vw - 2rem);
-  max-height: calc(100vh - 2rem);
-  padding: 0;
-  border: 0;
-  overflow: hidden;
-}
-
-.med-dialog-frame {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 2rem);
-  overflow: hidden;
-}
-
-.scms-medical-dialog form {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1 1 auto;
-}
-
-.med-dialog-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-.med-dialog-header,
-.med-dialog-footer {
-  flex: 0 0 auto;
+  .scms-medical *,
+  .scms-medical *::before,
+  .scms-medical *::after { transition: none; }
 }
