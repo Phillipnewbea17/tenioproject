@@ -8,8 +8,6 @@ import {
   TbFolder,
   TbHome,
   TbId,
-  TbDeviceMobileCheck,
-  TbUserEdit,
   TbLifebuoy,
   TbLogout,
   TbMedicalCross,
@@ -34,8 +32,6 @@ const NAV_GROUPS = [
       { key: "verification", label: "Document Verification", icon: TbFileCheck },
       { key: "records", label: "Records", icon: TbFolder },
       { key: "senior-ids", label: "OSCA IDs", icon: TbId },
-      { key: "app-verification", label: "App Account Verification", icon: TbDeviceMobileCheck },
-      { key: "app-corrections", label: "App Correction Requests", icon: TbUserEdit },
     ],
   },
   {

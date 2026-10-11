@@ -20,8 +20,6 @@ import Reports from "./Pages/Reports";
 import ActivityLog from "./Pages/ActivityLog";
 import Funds from "./Pages/Funds";
 import HelpDesk from "./Pages/HelpDesk";
-import AppVerification from "./Pages/AppVerification";
-import AppCorrections from "./Pages/AppCorrections";
 
 import "./index.css";
 
@@ -165,16 +163,6 @@ export default function App() {
         <Route
           path="help-desk"
           element={<HelpDesk />}
-        />
-
-        <Route
-          path="app-verification"
-          element={<AppVerification />}
-        />
-
-        <Route
-          path="app-corrections"
-          element={<AppCorrections />}
         />
 
         <Route

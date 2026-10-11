@@ -1346,84 +1346,9 @@ export async function getApplicationDocumentFile(documentId) {
   return response.blob();
 }
 
-// SENIOR APP ACCOUNT VERIFICATION (linking app accounts to senior records)
-
-// [{ id, status, failure, method, submitted, has_selfie, phone, senior, ... }]
-// status: "Pending" (default), "Approved", "Rejected", "Failed" or "All".
-export async function getIdentityVerifications(status = "Pending") {
-  return apiRequest(
-    `/identity-verifications?status=${encodeURIComponent(status)}`,
-    {},
-    "Verification request"
-  );
-}
-
-// The live selfie, as a Blob (staff login needed, like document photos).
-export async function getIdentityVerificationSelfie(id) {
-  const response = await fetch(`${API_URL}/identity-verifications/${id}/selfie`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok) throw new Error(`Could not load the selfie (HTTP ${response.status}).`);
-  return response.blob();
-}
-
-export async function approveIdentityVerification(id, remarks = "") {
-  return apiRequest(
-    `/identity-verifications/${id}/approve`,
-    { method: "POST", body: JSON.stringify({ remarks }) },
-    "Approve"
-  );
-}
-
-export async function rejectIdentityVerification(id, remarks) {
-  return apiRequest(
-    `/identity-verifications/${id}/reject`,
-    { method: "POST", body: JSON.stringify({ remarks }) },
-    "Reject"
-  );
-}
-
 // SENIOR APP USERS (User Management > App Users, read-only)
 
 // [{ id, name, phone, linked, senior, verification, created_at, last_login_at }]
 export async function getAppAccounts() {
   return apiRequest("/app-accounts", {}, "App user");
-}
-
-// SENIOR APP CORRECTION REQUESTS (Personal Information > Request a correction)
-
-// [{ id, reference, status, field_label, current_value, requested_value,
-//    reason, has_attachment, phone, senior, remarks, ... }]
-// status: "Pending" (default), "Approved", "Rejected" or "All".
-export async function getProfileCorrections(status = "Pending") {
-  return apiRequest(
-    `/profile-corrections?status=${encodeURIComponent(status)}`,
-    {},
-    "Correction request"
-  );
-}
-
-// The supporting photo, as a Blob (staff login needed).
-export async function getProfileCorrectionAttachment(id) {
-  const response = await fetch(`${API_URL}/profile-corrections/${id}/attachment`, {
-    headers: authHeaders(),
-  });
-  if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
-  return response.blob();
-}
-
-export async function approveProfileCorrection(id, remarks = "") {
-  return apiRequest(
-    `/profile-corrections/${id}/approve`,
-    { method: "POST", body: JSON.stringify({ remarks }) },
-    "Approve"
-  );
-}
-
-export async function rejectProfileCorrection(id, remarks) {
-  return apiRequest(
-    `/profile-corrections/${id}/reject`,
-    { method: "POST", body: JSON.stringify({ remarks }) },
-    "Reject"
-  );
 }

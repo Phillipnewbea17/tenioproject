@@ -12,10 +12,8 @@ use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\FundController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HelpRequestController;
-use App\Http\Controllers\IdentityVerificationController;
 use App\Http\Controllers\RequestAttachmentController;
 use App\Http\Controllers\PasswordResetController;
-use App\Http\Controllers\ProfileCorrectionController;
 use App\Http\Controllers\PensionReleaseController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
@@ -99,20 +97,8 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::post('/help-requests/{helpRequest}/notes', [HelpRequestController::class, 'addNote']);
     Route::get('/senior-citizens/{seniorCitizen}/help-requests', [HelpRequestController::class, 'forSenior']);
 
-    // Senior app: linking app accounts to senior records (selfie review)
-    Route::get('/identity-verifications', [IdentityVerificationController::class, 'index']);
-    Route::get('/identity-verifications/{identityVerification}/selfie', [IdentityVerificationController::class, 'selfie']);
-    Route::post('/identity-verifications/{identityVerification}/approve', [IdentityVerificationController::class, 'approve']);
-    Route::post('/identity-verifications/{identityVerification}/reject', [IdentityVerificationController::class, 'reject']);
-
     // User Management > App Users (read-only).
     Route::get('/app-accounts', [AppAccountController::class, 'index']);
-
-    // Correction requests sent from the senior app.
-    Route::get('/profile-corrections', [ProfileCorrectionController::class, 'index']);
-    Route::get('/profile-corrections/{profileCorrection}/attachment', [ProfileCorrectionController::class, 'attachment']);
-    Route::post('/profile-corrections/{profileCorrection}/approve', [ProfileCorrectionController::class, 'approve']);
-    Route::post('/profile-corrections/{profileCorrection}/reject', [ProfileCorrectionController::class, 'reject']);
 
     // Photos the senior app sent with Medical, Burial, Help or ID requests
     Route::get('/request-attachments', [RequestAttachmentController::class, 'index']);
