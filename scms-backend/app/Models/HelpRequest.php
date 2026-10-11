@@ -35,6 +35,8 @@ class HelpRequest extends Model
 
     protected $fillable = [
         'source',
+        'app_account_id',
+        'client_id',
         'reference',
         'senior_citizen_id',
         'senior_name',

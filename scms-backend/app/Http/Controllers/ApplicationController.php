@@ -13,7 +13,18 @@ class ApplicationController extends Controller
     public function index()
     {
         return response()->json(
-            Application::withCount('documents')->orderBy('submitted_at', 'desc')->get()
+            Application::withCount('documents')
+                // So the list can show the senior's app-profile photo.
+                ->with('appAccount:id,photo_path')
+                ->orderBy('submitted_at', 'desc')
+                ->get()
+                ->map(function (Application $application) {
+                    $row = $application->toArray();
+                    $row['has_photo'] = (bool) $application->appAccount?->photo_path;
+                    unset($row['app_account']);
+
+                    return $row;
+                })
         );
     }
 

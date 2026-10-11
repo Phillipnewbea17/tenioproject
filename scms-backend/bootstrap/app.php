@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'staff' => \App\Http\Middleware\EnsureStaff::class,
             'app.account' => \App\Http\Middleware\EnsureAppAccount::class,
+            'app.linked' => \App\Http\Middleware\EnsureLinkedSenior::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

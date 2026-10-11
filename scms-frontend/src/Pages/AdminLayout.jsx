@@ -17,6 +17,8 @@ const PATH_TO_KEY = {
   "/senior-ids": "senior-ids",
   "/funds": "funds",
   "/help-desk": "help-desk",
+  "/app-verification": "app-verification",
+  "/app-corrections": "app-corrections",
   "/reports": "reports",
   "/activity-log": "activity-log"
 };

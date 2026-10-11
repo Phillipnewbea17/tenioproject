@@ -7,6 +7,7 @@ import {
   FiCheckCircle,
   FiChevronLeft,
   FiChevronRight,
+  FiClock,
   FiCopy,
   FiEdit2,
   FiEye,
@@ -16,6 +17,7 @@ import {
   FiRefreshCw,
   FiSearch,
   FiShield,
+  FiSmartphone,
   FiUser,
   FiUserCheck,
   FiUserPlus,
@@ -28,14 +30,17 @@ import {
   createUser,
   updateUser,
   resetUserPassword,
+  setAppUserStatus,
+  getRecentLogins,
 } from "../services/api";
+import AppUserAvatar from "../components/AppUserAvatar";
 import "./UserManagement.css";
 
 /* -------------------------------------------------------------------------- */
 /* Constants                                                                  */
 /* -------------------------------------------------------------------------- */
 
-// The system has two roles. Edit the descriptions to match your permissions.
+// The system has two staff roles. Edit the descriptions to match your permissions.
 const ROLES = [
   {
     value: "Administrator",
@@ -46,6 +51,13 @@ const ROLES = [
     description: "Can use the system but cannot manage other users.",
   },
 ];
+
+// App users (seniors) have their own role, kept apart from staff roles so an
+// app user can never become an administrator.
+const APP_ROLE_LABELS = {
+  senior: "Senior",
+  familyRelative: "Family relative",
+};
 
 const PAGE_SIZE = 10;
 const MIN_PASSWORD_LENGTH = 8;
@@ -87,6 +99,20 @@ function initials(name) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
+
+// Round avatar: the senior's app-profile photo when they set one, otherwise
+// their initials. Staff have no photo, so they always show initials.
+function Avatar({ user, large }) {
+  return (
+    <AppUserAvatar
+      appAccountId={user.type === "app_user" ? user.id : null}
+      hasPhoto={user.hasPhoto}
+      className={`um-avatar${large ? " um-avatar-lg" : ""}`}
+    >
+      {initials(user.name)}
+    </AppUserAvatar>
+  );
 }
 
 function getCurrentUser() {
@@ -131,7 +157,7 @@ function formatRelative(date) {
   });
 }
 
-// Only two roles exist now. Anything that isn't an administrator
+// Only two staff roles exist now. Anything that isn't an administrator
 // (including old "Staff" / "Encoder" values) is shown as "User".
 function normalizeRole(role) {
   const value = String(role || "").toLowerCase();
@@ -145,18 +171,30 @@ function normalizeRole(role) {
   return "User";
 }
 
-// Converts a Laravel user row into the shape this page uses.
+function appRoleLabel(role) {
+  return APP_ROLE_LABELS[role] || "App user";
+}
+
+// Converts a merged user row (staff or app user) into the shape this page uses.
 function normalizeUser(user) {
   const loginDate = user.last_login_at ? new Date(user.last_login_at) : null;
   const hasLogin = loginDate && !Number.isNaN(loginDate.getTime());
+  const type = user.type === "app_user" ? "app_user" : "staff";
 
   return {
     id: user.id,
-    name: user.name || user.username || "",
+    uid: user.uid || `${type}-${user.id}`,
+    type,
+    name: user.name || user.username || user.phone || "",
     username: user.username || "",
     email: user.email || "",
-    role: normalizeRole(user.role),
+    phone: user.phone || "",
+    // Staff roles are normalized to Administrator / User; app roles are kept.
+    role: type === "staff" ? normalizeRole(user.role) : user.role || "senior",
     status: user.status || "Active",
+    hasPhoto: Boolean(user.has_photo),
+    linked: user.linked ?? null,
+    senior: user.senior || null,
     lastLoginRelative: hasLogin ? formatRelative(loginDate) : "",
     lastLoginFull: hasLogin ? formatFullDate(loginDate) : "",
     lastLoginTime: hasLogin ? loginDate.getTime() : 0,
@@ -204,7 +242,8 @@ function validateUserForm(form, { isAdd, users, editingId }) {
   } else if (
     users.some(
       (user) =>
-        user.id !== editingId &&
+        user.type === "staff" &&
+        user.uid !== editingId &&
         user.username.toLowerCase() === username.toLowerCase()
     )
   ) {
@@ -218,7 +257,9 @@ function validateUserForm(form, { isAdd, users, editingId }) {
   } else if (
     users.some(
       (user) =>
-        user.id !== editingId && user.email.toLowerCase() === email.toLowerCase()
+        user.type === "staff" &&
+        user.uid !== editingId &&
+        user.email.toLowerCase() === email.toLowerCase()
     )
   ) {
     errors.email = "This email address is already used by another user.";
@@ -426,6 +467,35 @@ function RoleBadge({ role }) {
   );
 }
 
+// Role shown in the Role column: staff roles use the coloured badge; app users
+// get a neutral badge with their app role (never an administrator).
+function RoleCell({ user }) {
+  if (user.type === "staff") {
+    return <RoleBadge role={user.role} />;
+  }
+
+  return (
+    <span className="um-badge um-badge-user">
+      <FiSmartphone />
+      {appRoleLabel(user.role)}
+    </span>
+  );
+}
+
+function TypeBadge({ type }) {
+  return type === "app_user" ? (
+    <span className="um-badge um-badge-user">
+      <FiSmartphone />
+      App user
+    </span>
+  ) : (
+    <span className="um-badge um-badge-admin">
+      <FiShield />
+      Staff
+    </span>
+  );
+}
+
 function StatusBadge({ status }) {
   return (
     <span className={`um-status ${status.toLowerCase()}`}>
@@ -438,9 +508,7 @@ function StatusBadge({ status }) {
 // The on/off switch used in the table. Switching a user off asks to confirm.
 function StatusSwitch({ user, busy, disabledReason, onToggle }) {
   const active = user.status === "Active";
-  const label = active
-    ? "Deactivate user"
-    : "Activate user";
+  const label = active ? "Deactivate user" : "Activate user";
 
   return (
     <div className="um-status-cell" title={disabledReason || label}>
@@ -511,9 +579,7 @@ function ActionMenu({ label, items, disabled }) {
   useEffect(() => {
     if (!open) return undefined;
 
-    const firstItem = menuRef.current?.querySelector(
-      "button:not(:disabled)"
-    );
+    const firstItem = menuRef.current?.querySelector("button:not(:disabled)");
     firstItem?.focus();
 
     const handlePointer = (event) => {
@@ -611,12 +677,112 @@ function ActionMenu({ label, items, disabled }) {
   );
 }
 
+// Recent logins panel. Fetches its own data and refreshes when reloadKey
+// changes (the page's Refresh/reload bumps it).
+function RecentLogins({ reloadKey }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    getRecentLogins()
+      .then((data) => {
+        if (!alive) return;
+        setRows(Array.isArray(data) ? data : []);
+        setError("");
+      })
+      .catch((err) => alive && setError(err.message || "Failed to load recent logins."))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
+  return (
+    <section className="um-panel um-recent">
+      <div className="um-recent-head">
+        <h2>
+          <FiClock aria-hidden="true" /> Recent logins
+        </h2>
+        <span className="um-muted">The latest staff and app sign-ins.</span>
+      </div>
+
+      {loading && <p className="um-muted um-app-loading">Loading…</p>}
+
+      {!loading && error && (
+        <div className="um-state" role="alert">
+          <span className="um-state-icon error">
+            <FiAlertCircle />
+          </span>
+          <h3>Recent logins could not be loaded</h3>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {!loading && !error && rows.length === 0 && (
+        <p className="um-muted um-app-loading">No logins recorded yet.</p>
+      )}
+
+      {!loading && !error && rows.length > 0 && (
+        <div className="um-table-wrap">
+          <table className="um-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Type</th>
+                <th className="um-col-hide-sm">When</th>
+                <th className="um-col-hide-sm">IP · Device</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const when = row.logged_in_at ? new Date(row.logged_in_at) : null;
+                const hasWhen = when && !Number.isNaN(when.getTime());
+                return (
+                  <tr key={row.id}>
+                    <td>
+                      <div className="um-user-cell">
+                        <span className="um-avatar">{initials(row.name)}</span>
+                        <span className="um-user-text">
+                          <strong>{row.name}</strong>
+                          {row.detail && <small>{row.detail}</small>}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <TypeBadge type={row.type} />
+                    </td>
+                    <td className="um-col-hide-sm">
+                      {hasWhen ? (
+                        <time title={formatFullDate(when)} className="um-muted">
+                          {formatRelative(when)}
+                        </time>
+                      ) : (
+                        <span className="um-faint">—</span>
+                      )}
+                    </td>
+                    <td className="um-col-hide-sm um-muted">
+                      {[row.ip, row.device].filter(Boolean).join(" · ") || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
+  const [counts, setCounts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -631,6 +797,7 @@ export default function UserManagement() {
   const [busyId, setBusyId] = useState(null);
 
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("All");
   const [roleFilter, setRoleFilter] = useState("All");
   const [sort, setSort] = useState({ key: null, dir: "asc" });
@@ -662,10 +829,10 @@ export default function UserManagement() {
     let cancelled = false;
 
     getUsers()
-      .then((data) => {
+      .then(({ users: rows, counts: serverCounts }) => {
         if (cancelled) return;
-        const rows = Array.isArray(data) ? data : data.data || [];
-        setUsers(rows.map(normalizeUser));
+        setUsers((Array.isArray(rows) ? rows : []).map(normalizeUser));
+        setCounts(serverCounts);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -685,20 +852,30 @@ export default function UserManagement() {
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const queryDigits = query.replace(/\D/g, "");
 
     const rows = users.filter((user) => {
+      const matchesType = typeFilter === "all" || user.type === typeFilter;
+
       const matchesSearch =
         !query ||
         user.name.toLowerCase().includes(query) ||
         user.username.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query);
+        user.email.toLowerCase().includes(query) ||
+        (queryDigits &&
+          user.phone.replace(/\D/g, "").includes(queryDigits));
 
       const matchesStatus =
         statusFilter === "All" || user.status === statusFilter;
 
-      const matchesRole = roleFilter === "All" || user.role === roleFilter;
+      // App users are treated as "User" for the role filter, so picking
+      // "User" shows both staff users and app users.
+      const matchesRole =
+        roleFilter === "All" ||
+        user.role === roleFilter ||
+        (roleFilter === "User" && user.type === "app_user");
 
-      return matchesSearch && matchesStatus && matchesRole;
+      return matchesType && matchesSearch && matchesStatus && matchesRole;
     });
 
     if (!sort.key) return rows;
@@ -716,28 +893,42 @@ export default function UserManagement() {
         }) * direction
       );
     });
-  }, [users, search, statusFilter, roleFilter, sort]);
+  }, [users, search, typeFilter, statusFilter, roleFilter, sort]);
 
-  const stats = {
-    total: users.length,
-    active: users.filter((user) => user.status === "Active").length,
-    inactive: users.filter((user) => user.status === "Inactive").length,
-    administrators: users.filter((user) => user.role === "Administrator")
-      .length,
-  };
+  // Cards use the server's global counts when available, falling back to the
+  // loaded rows.
+  const stats = counts
+    ? {
+        total: counts.total,
+        active: counts.active,
+        inactive: counts.inactive,
+        staff: counts.staff,
+        appUsers: counts.app_users,
+      }
+    : {
+        total: users.length,
+        active: users.filter((user) => user.status === "Active").length,
+        inactive: users.filter((user) => user.status === "Inactive").length,
+        staff: users.filter((user) => user.type === "staff").length,
+        appUsers: users.filter((user) => user.type === "app_user").length,
+      };
 
   const activeAdminCount = users.filter(
-    (user) => user.role === "Administrator" && user.status === "Active"
+    (user) =>
+      user.type === "staff" &&
+      user.role === "Administrator" &&
+      user.status === "Active"
   ).length;
 
   const isLastActiveAdmin = (user) =>
+    user.type === "staff" &&
     user.role === "Administrator" &&
     user.status === "Active" &&
     activeAdminCount <= 1;
 
-  // True when the row belongs to the person who is logged in.
+  // True when the row belongs to the person who is logged in (staff only).
   const isSelf = (user) => {
-    if (!currentUser) return false;
+    if (!currentUser || user.type !== "staff") return false;
 
     if (currentUser.id != null && String(currentUser.id) === String(user.id)) {
       return true;
@@ -768,7 +959,10 @@ export default function UserManagement() {
   const pageRows = filteredUsers.slice(pageStart, pageStart + PAGE_SIZE);
 
   const hasFilters =
-    Boolean(search.trim()) || statusFilter !== "All" || roleFilter !== "All";
+    Boolean(search.trim()) ||
+    typeFilter !== "all" ||
+    statusFilter !== "All" ||
+    roleFilter !== "All";
 
   const showTable = loading || (!loadError && filteredUsers.length > 0);
 
@@ -791,7 +985,8 @@ export default function UserManagement() {
 
   /* ------------------------------- Filtering ------------------------------- */
 
-  const applyFilters = ({ status = "All", role = "All" }) => {
+  const applyFilters = ({ type = "all", status = "All", role = "All" }) => {
+    setTypeFilter(type);
     setStatusFilter(status);
     setRoleFilter(role);
     setPage(1);
@@ -893,7 +1088,7 @@ export default function UserManagement() {
   const replaceUser = (updated) => {
     const next = normalizeUser(updated);
     setUsers((previous) =>
-      previous.map((user) => (user.id === next.id ? next : user))
+      previous.map((user) => (user.uid === next.uid ? next : user))
     );
   };
 
@@ -922,7 +1117,7 @@ export default function UserManagement() {
     const found = validateUserForm(form, {
       isAdd,
       users,
-      editingId: isAdd ? null : modal.user.id,
+      editingId: isAdd ? null : modal.user.uid,
     });
 
     if (!isAdd && form.role !== "Administrator") {
@@ -957,8 +1152,10 @@ export default function UserManagement() {
         });
 
         setUsers((previous) => [normalizeUser(created), ...previous]);
+        setCounts(null); // recompute from rows until the next refresh
         // Make sure the new user is visible at the top of the list.
         setSearch("");
+        setTypeFilter("all");
         setStatusFilter("All");
         setRoleFilter("All");
         setSort({ key: null, dir: "asc" });
@@ -979,11 +1176,23 @@ export default function UserManagement() {
   };
 
   const changeStatus = async (user, nextStatus) => {
-    setBusyId(user.id);
+    setBusyId(user.uid);
 
     try {
-      const updated = await updateUser(user.id, { status: nextStatus });
+      const updated =
+        user.type === "app_user"
+          ? await setAppUserStatus(user.id, nextStatus)
+          : await updateUser(user.id, { status: nextStatus });
       replaceUser(updated);
+      setCounts((previous) =>
+        previous
+          ? {
+              ...previous,
+              active: previous.active + (nextStatus === "Active" ? 1 : -1),
+              inactive: previous.inactive + (nextStatus === "Active" ? -1 : 1),
+            }
+          : previous
+      );
       pushToast(
         nextStatus === "Active"
           ? `${user.name} was activated.`
@@ -998,7 +1207,7 @@ export default function UserManagement() {
     }
   };
 
-  const resetPassword = async (event) => {
+  const resetUserPasswordSubmit = async (event) => {
     event.preventDefault();
 
     const found = {};
@@ -1039,11 +1248,12 @@ export default function UserManagement() {
   const statCards = [
     {
       key: "total",
-      label: "Total users",
+      label: "Total",
       value: stats.total,
       tone: "green",
       icon: <FiUsers />,
-      active: statusFilter === "All" && roleFilter === "All",
+      active:
+        typeFilter === "all" && statusFilter === "All" && roleFilter === "All",
       onClick: () => applyFilters({}),
     },
     {
@@ -1052,7 +1262,7 @@ export default function UserManagement() {
       value: stats.active,
       tone: "blue",
       icon: <FiUserCheck />,
-      active: statusFilter === "Active" && roleFilter === "All",
+      active: statusFilter === "Active" && typeFilter === "all" && roleFilter === "All",
       onClick: () => applyFilters({ status: "Active" }),
     },
     {
@@ -1061,23 +1271,56 @@ export default function UserManagement() {
       value: stats.inactive,
       tone: "amber",
       icon: <FiUserX />,
-      active: statusFilter === "Inactive" && roleFilter === "All",
+      active: statusFilter === "Inactive" && typeFilter === "all" && roleFilter === "All",
       onClick: () => applyFilters({ status: "Inactive" }),
     },
     {
-      key: "admins",
-      label: "Administrators",
-      value: stats.administrators,
+      key: "staff",
+      label: "Staff",
+      value: stats.staff,
       tone: "purple",
       icon: <FiShield />,
-      active: statusFilter === "All" && roleFilter === "Administrator",
-      onClick: () => applyFilters({ role: "Administrator" }),
+      active: typeFilter === "staff" && statusFilter === "All" && roleFilter === "All",
+      onClick: () => applyFilters({ type: "staff" }),
+    },
+    {
+      key: "app_users",
+      label: "App users",
+      value: stats.appUsers,
+      tone: "blue",
+      icon: <FiSmartphone />,
+      active: typeFilter === "app_user" && statusFilter === "All" && roleFilter === "All",
+      onClick: () => applyFilters({ type: "app_user" }),
     },
   ];
 
   const menuItemsFor = (user) => {
     const active = user.status === "Active";
     const blockedReason = deactivateBlockedReason(user);
+
+    const statusItem = {
+      key: "status",
+      label: active ? "Deactivate user" : "Activate user",
+      icon: active ? <FiUserX /> : <FiUserCheck />,
+      tone: active ? "danger" : "success",
+      disabled: Boolean(blockedReason),
+      hint: blockedReason || undefined,
+      onClick: () => requestToggleStatus(user),
+    };
+
+    // App users: only view and activate/deactivate (no role or password edits).
+    if (user.type === "app_user") {
+      return [
+        {
+          key: "view",
+          label: "View details",
+          icon: <FiEye />,
+          onClick: () => openViewModal(user),
+        },
+        { key: "divider", divider: true },
+        statusItem,
+      ];
+    }
 
     return [
       {
@@ -1093,15 +1336,7 @@ export default function UserManagement() {
         onClick: () => openResetModal(user),
       },
       { key: "divider", divider: true },
-      {
-        key: "status",
-        label: active ? "Deactivate user" : "Activate user",
-        icon: active ? <FiUserX /> : <FiUserCheck />,
-        tone: active ? "danger" : "success",
-        disabled: Boolean(blockedReason),
-        hint: blockedReason || undefined,
-        onClick: () => requestToggleStatus(user),
-      },
+      statusItem,
     ];
   };
 
@@ -1113,7 +1348,10 @@ export default function UserManagement() {
           <div>
             <span className="um-eyebrow">People and records</span>
             <h1>User Management</h1>
-            <p>Manage who can log in to SCMS and what they can do.</p>
+            <p>
+              Everyone who can log in — SCMS staff and seniors who use the
+              mobile app — in one list.
+            </p>
           </div>
         </div>
 
@@ -1123,7 +1361,7 @@ export default function UserManagement() {
           onClick={openAddModal}
         >
           <FiUserPlus />
-          Add user
+          Add staff
         </button>
       </header>
 
@@ -1154,7 +1392,7 @@ export default function UserManagement() {
             <FiSearch aria-hidden="true" />
             <input
               type="text"
-              placeholder="Search by name, username or email"
+              placeholder="Search by name, username, email or phone"
               aria-label="Search users"
               value={search}
               onChange={(event) => {
@@ -1176,6 +1414,19 @@ export default function UserManagement() {
               </button>
             )}
           </div>
+
+          <select
+            aria-label="Filter by type"
+            value={typeFilter}
+            onChange={(event) => {
+              setTypeFilter(event.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="all">All types</option>
+            <option value="staff">Staff</option>
+            <option value="app_user">App users</option>
+          </select>
 
           <select
             aria-label="Filter by status"
@@ -1245,14 +1496,14 @@ export default function UserManagement() {
             {users.length === 0 ? (
               <>
                 <h3>No users yet</h3>
-                <p>Add the first user to give someone access to SCMS.</p>
+                <p>Add the first staff user to give someone access to SCMS.</p>
                 <button
                   type="button"
                   className="um-btn um-btn-primary"
                   onClick={openAddModal}
                 >
                   <FiUserPlus />
-                  Add user
+                  Add staff
                 </button>
               </>
             ) : (
@@ -1283,7 +1534,13 @@ export default function UserManagement() {
                     sort={sort}
                     onSort={handleSort}
                   />
-                  <th className="um-col-hide-xs">Email</th>
+                  <SortHeader
+                    label="Type"
+                    sortKey="type"
+                    sort={sort}
+                    onSort={handleSort}
+                  />
+                  <th className="um-col-hide-xs">Email or phone</th>
                   <SortHeader
                     label="Role"
                     sortKey="role"
@@ -1317,6 +1574,9 @@ export default function UserManagement() {
                           <span className="um-skeleton um-skeleton-line" />
                         </div>
                       </td>
+                      <td>
+                        <span className="um-skeleton um-skeleton-pill" />
+                      </td>
                       <td className="um-col-hide-xs">
                         <span className="um-skeleton um-skeleton-line" />
                       </td>
@@ -1335,12 +1595,12 @@ export default function UserManagement() {
 
                 {!loading &&
                   pageRows.map((user) => {
-                    const busy = busyId === user.id;
+                    const busy = busyId === user.uid;
                     const self = isSelf(user);
 
                     return (
                       <tr
-                        key={user.id}
+                        key={user.uid}
                         className={user.status === "Inactive" ? "is-inactive" : ""}
                       >
                         <td>
@@ -1350,24 +1610,35 @@ export default function UserManagement() {
                             onClick={() => openViewModal(user)}
                             title="View details"
                           >
-                            <span className="um-avatar">
-                              {initials(user.name)}
-                            </span>
+                            <Avatar user={user} />
                             <span className="um-user-text">
                               <strong>
                                 {user.name}
                                 {self && <span className="um-you">You</span>}
                               </strong>
-                              {user.username && <small>@{user.username}</small>}
-                              <small className="um-email-mobile">
-                                {user.email}
-                              </small>
+                              {user.type === "staff" ? (
+                                <>
+                                  {user.username && <small>@{user.username}</small>}
+                                  <small className="um-email-mobile">
+                                    {user.email}
+                                  </small>
+                                </>
+                              ) : (
+                                <small className="um-email-mobile">
+                                  {user.phone}
+                                </small>
+                              )}
                             </span>
                           </button>
                         </td>
-                        <td className="um-email um-col-hide-xs">{user.email}</td>
                         <td>
-                          <RoleBadge role={user.role} />
+                          <TypeBadge type={user.type} />
+                        </td>
+                        <td className="um-email um-col-hide-xs">
+                          {user.type === "staff" ? user.email : user.phone}
+                        </td>
+                        <td>
+                          <RoleCell user={user} />
                         </td>
                         <td>
                           <StatusSwitch
@@ -1382,16 +1653,29 @@ export default function UserManagement() {
                         </td>
                         <td>
                           <div className="um-actions">
-                            <button
-                              type="button"
-                              className="um-btn um-btn-secondary um-btn-sm"
-                              onClick={() => openEditModal(user)}
-                              disabled={busy}
-                              aria-label={`Edit ${user.name}`}
-                            >
-                              <FiEdit2 />
-                              Edit
-                            </button>
+                            {user.type === "staff" ? (
+                              <button
+                                type="button"
+                                className="um-btn um-btn-secondary um-btn-sm"
+                                onClick={() => openEditModal(user)}
+                                disabled={busy}
+                                aria-label={`Edit ${user.name}`}
+                              >
+                                <FiEdit2 />
+                                Edit
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="um-btn um-btn-secondary um-btn-sm"
+                                onClick={() => openViewModal(user)}
+                                disabled={busy}
+                                aria-label={`View ${user.name}`}
+                              >
+                                <FiEye />
+                                View
+                              </button>
+                            )}
 
                             <ActionMenu
                               label={`More actions for ${user.name}`}
@@ -1451,34 +1735,59 @@ export default function UserManagement() {
         )}
       </section>
 
+      {/* Recent logins */}
+      <RecentLogins reloadKey={reloadKey} />
+
       {/* View details */}
       {modal?.type === "view" && (
         <Modal title="User details" onClose={requestClose}>
           <div className="um-modal-body">
             <div className="um-profile">
-              <span className="um-avatar um-avatar-lg">
-                {initials(modal.user.name)}
-              </span>
+              <Avatar user={modal.user} large />
               <div>
                 <h3>
                   {modal.user.name}
                   {isSelf(modal.user) && <span className="um-you">You</span>}
                 </h3>
-                {modal.user.username && <p>@{modal.user.username}</p>}
+                {modal.user.type === "staff" && modal.user.username ? (
+                  <p>@{modal.user.username}</p>
+                ) : modal.user.type === "app_user" ? (
+                  <p>{modal.user.phone}</p>
+                ) : null}
               </div>
             </div>
 
             <dl className="um-details">
               <div>
-                <dt>Email</dt>
-                <dd>{modal.user.email || "-"}</dd>
+                <dt>Type</dt>
+                <dd>
+                  <TypeBadge type={modal.user.type} />
+                </dd>
+              </div>
+              <div>
+                <dt>{modal.user.type === "staff" ? "Email" : "Phone"}</dt>
+                <dd>
+                  {(modal.user.type === "staff"
+                    ? modal.user.email
+                    : modal.user.phone) || "-"}
+                </dd>
               </div>
               <div>
                 <dt>Role</dt>
                 <dd>
-                  <RoleBadge role={modal.user.role} />
+                  <RoleCell user={modal.user} />
                 </dd>
               </div>
+              {modal.user.type === "app_user" && (
+                <div>
+                  <dt>Senior record</dt>
+                  <dd>
+                    {modal.user.senior
+                      ? `${modal.user.senior.senior_id} · ${modal.user.senior.name}`
+                      : "Not linked yet"}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>Status</dt>
                 <dd>
@@ -1497,30 +1806,47 @@ export default function UserManagement() {
           </div>
 
           <div className="um-modal-actions">
-            <button
-              type="button"
-              className="um-btn um-btn-secondary"
-              onClick={() => openResetModal(modal.user)}
-            >
-              <FiKey />
-              Reset password
-            </button>
-            <button
-              type="button"
-              className="um-btn um-btn-primary"
-              onClick={() => openEditModal(modal.user)}
-            >
-              <FiEdit2 />
-              Edit user
-            </button>
+            {modal.user.type === "staff" ? (
+              <>
+                <button
+                  type="button"
+                  className="um-btn um-btn-secondary"
+                  onClick={() => openResetModal(modal.user)}
+                >
+                  <FiKey />
+                  Reset password
+                </button>
+                <button
+                  type="button"
+                  className="um-btn um-btn-primary"
+                  onClick={() => openEditModal(modal.user)}
+                >
+                  <FiEdit2 />
+                  Edit user
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className={`um-btn ${
+                  modal.user.status === "Active"
+                    ? "um-btn-danger"
+                    : "um-btn-primary"
+                }`}
+                onClick={() => requestToggleStatus(modal.user)}
+              >
+                {modal.user.status === "Active" ? <FiUserX /> : <FiUserCheck />}
+                {modal.user.status === "Active" ? "Deactivate" : "Activate"}
+              </button>
+            )}
           </div>
         </Modal>
       )}
 
-      {/* Add / edit */}
+      {/* Add / edit (staff only) */}
       {(modal?.type === "add" || modal?.type === "edit") && (
         <Modal
-          title={modal.type === "add" ? "Add user" : "Edit user"}
+          title={modal.type === "add" ? "Add staff user" : "Edit user"}
           onClose={requestClose}
         >
           <form className="um-form" onSubmit={saveUser} noValidate>
@@ -1628,10 +1954,10 @@ export default function UserManagement() {
         </Modal>
       )}
 
-      {/* Reset password */}
+      {/* Reset password (staff only) */}
       {modal?.type === "reset" && (
         <Modal title="Reset password" onClose={requestClose}>
-          <form className="um-form" onSubmit={resetPassword} noValidate>
+          <form className="um-form" onSubmit={resetUserPasswordSubmit} noValidate>
             <div className="um-modal-body">
               <p className="um-modal-note">
                 Set a new password for <strong>{modal.user.name}</strong>. They

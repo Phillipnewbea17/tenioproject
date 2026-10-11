@@ -405,6 +405,8 @@ function savedUserFromResponse(result) {
   return user;
 }
 
+// Returns { users, counts, meta }. "users" merges staff and app users, each
+// row carrying a "type" ("staff" | "app_user"). "counts" feeds the top cards.
 export async function getUsers() {
   const result = await userManagementRequest("/users");
 
@@ -416,7 +418,50 @@ export async function getUsers() {
     throw new Error("The API did not return a valid list of users.");
   }
 
-  return users;
+  return {
+    users,
+    counts: result?.counts ?? null,
+    meta: result?.meta ?? null,
+  };
+}
+
+// Recent successful logins (staff and app users) for the Recent logins panel.
+export async function getRecentLogins() {
+  const result = await userManagementRequest("/users/recent-logins");
+  return Array.isArray(result) ? result : [];
+}
+
+// The senior's app-profile photo, as a Blob (staff login needed, like the
+// selfie and document photos). Throws if there is no photo.
+export async function getAppUserPhoto(id) {
+  const response = await fetch(
+    `${API_URL}/app-accounts/${encodeURIComponent(id)}/photo`,
+    { headers: authHeaders() }
+  );
+  if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
+  return response.blob();
+}
+
+// The same photo, found through the senior citizen record instead, so pages
+// that only know the record can show it. Throws when there is no photo.
+export async function getSeniorPhoto(seniorCitizenId) {
+  const response = await fetch(
+    `${API_URL}/senior-citizens/${encodeURIComponent(seniorCitizenId)}/photo`,
+    { headers: authHeaders() }
+  );
+  if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
+  return response.blob();
+}
+
+// Activate / deactivate an app user. status: "Active" | "Inactive".
+export async function setAppUserStatus(id, status) {
+  return userManagementRequest(
+    `/app-accounts/${encodeURIComponent(id)}/status`,
+    {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }
+  );
 }
 
 export async function createUser(data) {
@@ -1299,4 +1344,86 @@ export async function getApplicationDocumentFile(documentId) {
   });
   if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
   return response.blob();
+}
+
+// SENIOR APP ACCOUNT VERIFICATION (linking app accounts to senior records)
+
+// [{ id, status, failure, method, submitted, has_selfie, phone, senior, ... }]
+// status: "Pending" (default), "Approved", "Rejected", "Failed" or "All".
+export async function getIdentityVerifications(status = "Pending") {
+  return apiRequest(
+    `/identity-verifications?status=${encodeURIComponent(status)}`,
+    {},
+    "Verification request"
+  );
+}
+
+// The live selfie, as a Blob (staff login needed, like document photos).
+export async function getIdentityVerificationSelfie(id) {
+  const response = await fetch(`${API_URL}/identity-verifications/${id}/selfie`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(`Could not load the selfie (HTTP ${response.status}).`);
+  return response.blob();
+}
+
+export async function approveIdentityVerification(id, remarks = "") {
+  return apiRequest(
+    `/identity-verifications/${id}/approve`,
+    { method: "POST", body: JSON.stringify({ remarks }) },
+    "Approve"
+  );
+}
+
+export async function rejectIdentityVerification(id, remarks) {
+  return apiRequest(
+    `/identity-verifications/${id}/reject`,
+    { method: "POST", body: JSON.stringify({ remarks }) },
+    "Reject"
+  );
+}
+
+// SENIOR APP USERS (User Management > App Users, read-only)
+
+// [{ id, name, phone, linked, senior, verification, created_at, last_login_at }]
+export async function getAppAccounts() {
+  return apiRequest("/app-accounts", {}, "App user");
+}
+
+// SENIOR APP CORRECTION REQUESTS (Personal Information > Request a correction)
+
+// [{ id, reference, status, field_label, current_value, requested_value,
+//    reason, has_attachment, phone, senior, remarks, ... }]
+// status: "Pending" (default), "Approved", "Rejected" or "All".
+export async function getProfileCorrections(status = "Pending") {
+  return apiRequest(
+    `/profile-corrections?status=${encodeURIComponent(status)}`,
+    {},
+    "Correction request"
+  );
+}
+
+// The supporting photo, as a Blob (staff login needed).
+export async function getProfileCorrectionAttachment(id) {
+  const response = await fetch(`${API_URL}/profile-corrections/${id}/attachment`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
+  return response.blob();
+}
+
+export async function approveProfileCorrection(id, remarks = "") {
+  return apiRequest(
+    `/profile-corrections/${id}/approve`,
+    { method: "POST", body: JSON.stringify({ remarks }) },
+    "Approve"
+  );
+}
+
+export async function rejectProfileCorrection(id, remarks) {
+  return apiRequest(
+    `/profile-corrections/${id}/reject`,
+    { method: "POST", body: JSON.stringify({ remarks }) },
+    "Reject"
+  );
 }

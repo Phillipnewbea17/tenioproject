@@ -27,6 +27,7 @@ import {
 } from "react-icons/fi";
 import SeniorHelpHistory from "../components/SeniorHelpHistory";
 import SeniorIdStatus from "../components/SeniorIdStatus";
+import AppUserAvatar from "../components/AppUserAvatar";
 import "./Records.css";
 
 /* -------------------------------------------------------------------------- */
@@ -1112,9 +1113,12 @@ function RecordDrawer({ record, flags, onClose, onEdit, onArchive, onRestore }) 
       >
         <header className="rp-drawer-header">
           <div className="rp-drawer-profile">
-            <span className={`rp-avatar rp-avatar-lg ${avatarTone(record.id)}`}>
+            <AppUserAvatar
+              seniorId={record.id}
+              className={`rp-avatar rp-avatar-lg ${avatarTone(record.id)}`}
+            >
               {initials(record.name)}
-            </span>
+            </AppUserAvatar>
             <div className="rp-drawer-heading">
               <h2 id="rp-drawer-title">{record.name}</h2>
               <span className="rp-muted">
@@ -1834,9 +1838,12 @@ export default function Records() {
                             onClick={() => setSelectedId(record.id)}
                             title="View details"
                           >
-                            <span className={`rp-avatar ${avatarTone(record.id)}`}>
+                            <AppUserAvatar
+                              seniorId={record.id}
+                              className={`rp-avatar ${avatarTone(record.id)}`}
+                            >
                               {initials(record.name)}
-                            </span>
+                            </AppUserAvatar>
                             <span className="rp-senior-text">
                               <strong>{record.name}</strong>
                               <small>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\LoginLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use App\Support\ActivityLogger;
@@ -39,6 +40,7 @@ class AuthController extends Controller
 
         // Remember when this user last logged in (shown in User Management).
         $user->forceFill(['last_login_at' => now()])->save();
+        LoginLog::record($user->id, LoginLog::TYPE_STAFF, $request);
 
         ActivityLogger::record('Authentication', 'Logged in', null, $user, $user->name, user: $user);
 

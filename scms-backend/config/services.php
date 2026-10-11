@@ -40,6 +40,9 @@ return [
         'driver' => env('SMS_DRIVER', 'log'),
         'semaphore_key' => env('SEMAPHORE_API_KEY'),
         'sender' => env('SMS_SENDER_NAME'),
+        'gateway_url' => env('SMS_GATEWAY_URL', 'https://api.sms-gate.app/3rdparty/v1/message'),
+        'gateway_username' => env('SMS_GATEWAY_USERNAME'),
+        'gateway_password' => env('SMS_GATEWAY_PASSWORD'),
     ],
 
 ];

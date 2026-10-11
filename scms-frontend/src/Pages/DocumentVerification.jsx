@@ -23,6 +23,7 @@ import {
   FiXCircle,
 } from "react-icons/fi";
 import ApplicationPhotos from "../components/ApplicationPhotos";
+import AppUserAvatar from "../components/AppUserAvatar";
 import "./DocumentVerification.css";
 
 /* -------------------------------------------------------------------------- */
@@ -192,6 +193,9 @@ function normalizeApplication(row) {
     appId: row.application_id || "",
     // "App" = submitted by the senior through the mobile app.
     source: row.source || "Walk-in",
+    // The senior's app account, so their app-profile photo can be shown.
+    appAccountId: row.app_account_id ?? null,
+    hasPhoto: Boolean(row.has_photo),
     photoCount: Number(row.documents_count) || 0,
     name: row.name || "Unnamed applicant",
     submittedAt: row.submitted_at,
@@ -497,9 +501,13 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
     >
       <header className="dv-drawer-header">
         <div className="dv-drawer-profile">
-          <span className={`dv-avatar dv-avatar-lg ${avatarTone(applicant.id)}`}>
+          <AppUserAvatar
+            appAccountId={applicant.appAccountId}
+            hasPhoto={applicant.hasPhoto}
+            className={`dv-avatar dv-avatar-lg ${avatarTone(applicant.id)}`}
+          >
             {initials(applicant.name)}
-          </span>
+          </AppUserAvatar>
           <div className="dv-drawer-heading">
             <h2 id="dv-drawer-title">{applicant.name}</h2>
             <span className="dv-muted">{applicant.appId || "No application ID"}</span>
@@ -1264,11 +1272,13 @@ export default function DocumentVerification() {
                             onClick={() => setSelectedId(applicant.id)}
                             title="Open application"
                           >
-                            <span
+                            <AppUserAvatar
+                              appAccountId={applicant.appAccountId}
+                              hasPhoto={applicant.hasPhoto}
                               className={`dv-avatar ${avatarTone(applicant.id)}`}
                             >
                               {initials(applicant.name)}
-                            </span>
+                            </AppUserAvatar>
                             <span className="dv-applicant-text">
                               <strong>{applicant.name}</strong>
                               <small>

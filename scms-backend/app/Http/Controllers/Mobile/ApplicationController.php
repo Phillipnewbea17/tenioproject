@@ -65,7 +65,11 @@ class ApplicationController extends Controller
         ]);
 
         $account = $request->user();
-        abort_if(blank($account->full_name), 422, 'Please add your full name in your profile first.');
+        // A linked account's name and birthday come from its senior record.
+        $senior = $account->seniorCitizen;
+        $name = $senior?->name ?: $account->full_name;
+        $birthDate = $senior?->birth_date ? \Illuminate\Support\Carbon::parse($senior->birth_date) : $account->birth_date;
+        abort_if(blank($name), 422, 'Please add your full name in your profile first.');
 
         $latest = $account->applications()->latest('id')->first();
         abort_if($latest?->status === 'Pending', 422, 'Your application is already being checked by the OSCA office.');
@@ -76,14 +80,14 @@ class ApplicationController extends Controller
         abort_if($missing, 422, 'Some papers were not received yet: '
             . collect($missing)->map(fn ($type) => ApplicationDocument::TYPES[$type])->implode(', ') . '. Please send them again.');
 
-        $application = DB::transaction(function () use ($account, $latest, $documents) {
+        $application = DB::transaction(function () use ($account, $latest, $documents, $name, $birthDate) {
             $types = $documents->pluck('type');
             $now = now();
             $fields = [
-                'name' => $account->full_name,
+                'name' => $name,
                 'contact' => '0' . $account->phone,
-                'birth_date' => $account->birth_date,
-                'age' => $account->birth_date?->age,
+                'birth_date' => $birthDate,
+                'age' => $birthDate?->age,
                 'status' => 'Pending',
                 // One app photo covers "birth certificate or valid ID".
                 'valid_id_uploaded' => $types->contains('proofOfAge'),

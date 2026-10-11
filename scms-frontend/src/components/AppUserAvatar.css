@@ -1,0 +1,11 @@
+/* The photo fills the page's own round avatar, whatever size it uses. */
+.app-avatar {
+  overflow: hidden;
+}
+
+.app-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}

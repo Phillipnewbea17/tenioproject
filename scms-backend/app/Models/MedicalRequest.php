@@ -15,6 +15,8 @@ class MedicalRequest extends Model
 
     protected $fillable = [
     'source',
+    'app_account_id',
+    'client_id',
     'reference',
     'senior_name',
     'senior_id',

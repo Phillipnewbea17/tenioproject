@@ -38,6 +38,12 @@ class SeniorCitizen extends Model
         return $this->hasMany(SeniorId::class);
     }
 
+    /** The senior app account linked to this record, if any (at most one). */
+    public function appAccount(): HasOne
+    {
+        return $this->hasOne(AppAccount::class);
+    }
+
     /** The senior's current OSCA ID (issued, pending or awaiting replacement). */
     public function currentOscaId(): HasOne
     {
