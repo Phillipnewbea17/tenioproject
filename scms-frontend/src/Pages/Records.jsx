@@ -36,15 +36,22 @@ import "./Records.css";
 
 const PUROKS = Array.from({ length: 7 }, (_, index) => `Purok ${index + 1}`);
 const GENDERS = ["Male", "Female"];
-const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 const CIVIL_STATUSES = ["Single", "Married", "Widowed", "Separated", "Divorced"];
 
 // Statuses that mean "no longer in the active list".
 const ARCHIVED_STATUSES = ["Archived", "Inactive", "Deceased"];
 
-// Old records may still carry these manual statuses. They are shown as
-// "Active" with a follow-up mark that staff can clear.
-const LEGACY_FLAG_STATUSES = ["Needs follow-up", "Needs attention"];
+// A record created from an approved application whose birth date, sex or
+// purok could not be read off the uploaded papers. It cannot be issued an
+// OSCA ID until the details are completed here in Edit record.
+const NEEDS_ATTENTION = "Needs attention";
+
+// The details an OSCA ID is printed from.
+const ID_FIELDS = ["birthDate", "gender", "purok"];
+
+// An older manual status. It is shown as "Active" with a follow-up mark
+// that staff can clear.
+const LEGACY_FLAG_STATUSES = ["Needs follow-up"];
 
 const MIN_SENIOR_AGE = 60;
 const STALE_DAYS = 365;
@@ -68,6 +75,7 @@ const SORT_OPTIONS = [
 const STATUS_CLASS = {
   Active: "active",
   Pending: "pending",
+  [NEEDS_ATTENTION]: "attention",
   Inactive: "inactive",
   Deceased: "deceased",
   Archived: "deceased",
@@ -76,13 +84,9 @@ const STATUS_CLASS = {
 const EMPTY_FORM = {
   name: "",
   birthDate: "",
-  gender: "Male",
-  purok: PUROKS[0],
+  gender: "",
+  purok: "",
   contact: "",
-  bloodType: "",
-  condition: "",
-  maintenance: "",
-  lastCheckup: "",
   civilStatus: "",
   emergencyContact: "",
   relationship: "",
@@ -96,10 +100,6 @@ const SERVER_FIELD_MAP = {
   gender: "gender",
   purok: "purok",
   contact: "contact",
-  blood_type: "bloodType",
-  condition: "condition",
-  maintenance: "maintenance",
-  last_checkup: "lastCheckup",
   civil_status: "civilStatus",
   emergency_contact: "emergencyContact",
   relationship: "relationship",
@@ -224,10 +224,6 @@ function buildRecord(row) {
     legacyFlag,
     isArchived: ARCHIVED_STATUSES.includes(status),
     lastUpdated: updated && !Number.isNaN(updated.getTime()) ? updated : null,
-    bloodType: row.blood_type || "",
-    condition: row.condition || "",
-    maintenance: row.maintenance || "",
-    lastCheckup: row.last_checkup ? String(row.last_checkup).slice(0, 10) : "",
     civilStatus: row.civil_status || "",
     emergencyContact: row.emergency_contact || "",
     relationship: row.relationship || "",
@@ -241,13 +237,11 @@ function recordToForm(record) {
   return {
     name: record.name,
     birthDate: record.birthDate,
-    gender: record.gender || "Male",
-    purok: record.purok || PUROKS[0],
+    // Left blank when the papers did not say: the admin has to choose,
+    // rather than have a wrong value filled in for them.
+    gender: record.gender,
+    purok: record.purok,
     contact: record.contact,
-    bloodType: record.bloodType,
-    condition: record.condition,
-    maintenance: record.maintenance,
-    lastCheckup: record.lastCheckup,
     civilStatus: record.civilStatus,
     emergencyContact: record.emergencyContact,
     relationship: record.relationship,
@@ -262,11 +256,6 @@ function formToPayload(form) {
     gender: form.gender,
     purok: form.purok,
     contact: form.contact.trim() || null,
-
-    blood_type: form.bloodType || null,
-    condition: form.condition.trim() || null,
-    maintenance: form.maintenance.trim() || null,
-    last_checkup: form.lastCheckup || null,
 
     civil_status: form.civilStatus || null,
     emergency_contact: form.emergencyContact.trim() || null,
@@ -288,6 +277,17 @@ function extractFieldErrors(error) {
   });
 
   return result;
+}
+
+// The ID details this record is still missing, in plain words.
+function missingIdDetails(record) {
+  const labels = { birthDate: "birth date", gender: "gender", purok: "purok" };
+
+  const missing = ID_FIELDS.filter((field) => !record[field]).map(
+    (field) => labels[field]
+  );
+
+  return missing.length > 0 ? missing : ["details"];
 }
 
 function duplicateKey(name, birthDate) {
@@ -314,13 +314,29 @@ function getFlags(record, duplicateGroups) {
     flags.push({
       key: "birthdate",
       label: "No birth date",
-      detail: "Age and the birthday list depend on the birth date.",
+      detail: "Age, the birthday list and the OSCA ID all need the birth date.",
     });
   } else if (record.age !== "" && record.age < MIN_SENIOR_AGE) {
     flags.push({
       key: "age",
       label: `Under ${MIN_SENIOR_AGE} years old`,
       detail: `Senior citizen eligibility starts at ${MIN_SENIOR_AGE}. Check the birth date.`,
+    });
+  }
+
+  if (!record.gender) {
+    flags.push({
+      key: "gender",
+      label: "No sex recorded",
+      detail: "The OSCA ID card prints the senior's sex.",
+    });
+  }
+
+  if (!record.purok) {
+    flags.push({
+      key: "purok",
+      label: "No purok",
+      detail: "The OSCA ID card prints the address, and reports group by purok.",
     });
   }
 
@@ -452,6 +468,14 @@ function validateForm(form, { records, editingId }) {
     if (age === "" || age < MIN_SENIOR_AGE) {
       errors.birthDate = `Senior citizens must be at least ${MIN_SENIOR_AGE} years old. This person is ${age}.`;
     }
+  }
+
+  if (!GENDERS.includes(form.gender)) {
+    errors.gender = "Select the senior's gender.";
+  }
+
+  if (!PUROKS.includes(form.purok)) {
+    errors.purok = "Select the purok the senior lives in.";
   }
 
   if (form.contact.trim() && !isValidContact(form.contact)) {
@@ -786,6 +810,17 @@ function SeniorFormModal({ record, records, onClose, onSave }) {
             </div>
           )}
 
+          {isEdit && record.status === NEEDS_ATTENTION && (
+            <div className="rp-banner attention" role="status">
+              <FiAlertTriangle aria-hidden="true" />
+              <span>
+                The {missingIdDetails(record).join(", ")} could not be read
+                from this senior's papers. Fill in the birth date, gender and
+                purok and this record becomes Active, ready for an OSCA ID.
+              </span>
+            </div>
+          )}
+
           <section className="rp-form-section">
             <h3>Personal information</h3>
 
@@ -832,12 +867,14 @@ function SeniorFormModal({ record, records, onClose, onSave }) {
             </div>
 
             <div className="rp-field-row">
-              <Field label="Gender" htmlFor="rp-gender">
+              <Field label="Gender" htmlFor="rp-gender" error={errors.gender}>
                 <select
                   id="rp-gender"
                   value={form.gender}
                   onChange={update("gender")}
+                  {...ariaFor("gender")}
                 >
+                  <option value="">Select gender</option>
                   {GENDERS.map((gender) => (
                     <option key={gender} value={gender}>
                       {gender}
@@ -846,12 +883,14 @@ function SeniorFormModal({ record, records, onClose, onSave }) {
                 </select>
               </Field>
 
-              <Field label="Purok" htmlFor="rp-purok">
+              <Field label="Purok" htmlFor="rp-purok" error={errors.purok}>
                 <select
                   id="rp-purok"
                   value={form.purok}
                   onChange={update("purok")}
+                  {...ariaFor("purok")}
                 >
+                  <option value="">Select purok</option>
                   {PUROKS.map((purok) => (
                     <option key={purok} value={purok}>
                       {purok}
@@ -879,59 +918,6 @@ function SeniorFormModal({ record, records, onClose, onSave }) {
                 {...ariaFor("contact")}
               />
             </Field>
-          </section>
-
-          <section className="rp-form-section">
-            <h3>Medical information</h3>
-
-            <div className="rp-field-row">
-              <Field label="Blood type" htmlFor="rp-bloodType">
-                <select
-                  id="rp-bloodType"
-                  value={form.bloodType}
-                  onChange={update("bloodType")}
-                >
-                  <option value="">Unknown</option>
-                  {BLOOD_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Last checkup" htmlFor="rp-lastCheckup">
-                <input
-                  id="rp-lastCheckup"
-                  type="date"
-                  max={todayISO()}
-                  value={form.lastCheckup}
-                  onChange={update("lastCheckup")}
-                />
-              </Field>
-            </div>
-
-            <div className="rp-field-row">
-              <Field label="Condition" htmlFor="rp-condition">
-                <input
-                  id="rp-condition"
-                  type="text"
-                  placeholder="Example: Hypertension"
-                  value={form.condition}
-                  onChange={update("condition")}
-                />
-              </Field>
-
-              <Field label="Maintenance medicine" htmlFor="rp-maintenance">
-                <input
-                  id="rp-maintenance"
-                  type="text"
-                  placeholder="Example: Amlodipine"
-                  value={form.maintenance}
-                  onChange={update("maintenance")}
-                />
-              </Field>
-            </div>
           </section>
 
           <section className="rp-form-section">
@@ -1169,16 +1155,6 @@ function RecordDrawer({ record, flags, onClose, onEdit, onArchive, onRestore }) 
             <InfoRow label="Gender">{record.gender}</InfoRow>
             <InfoRow label="Purok">{record.purok}</InfoRow>
             <InfoRow label="Contact">{record.contact}</InfoRow>
-          </section>
-
-          <section className="rp-info">
-            <h3>Medical information</h3>
-            <InfoRow label="Blood type">{record.bloodType}</InfoRow>
-            <InfoRow label="Condition">{record.condition}</InfoRow>
-            <InfoRow label="Maintenance">{record.maintenance}</InfoRow>
-            <InfoRow label="Last checkup">
-              {record.lastCheckup ? formatLongDate(record.lastCheckup) : ""}
-            </InfoRow>
           </section>
 
           <section className="rp-info">
@@ -1420,7 +1396,11 @@ export default function Records() {
       setRecords((previous) =>
         previous.map((record) => (record.id === next.id ? next : record))
       );
-      pushToast(`${next.name}'s record was saved.`);
+      pushToast(
+        formModal.record.status === NEEDS_ATTENTION && next.status === "Active"
+          ? `${next.name}'s record is complete and now Active. An OSCA ID can be issued.`
+          : `${next.name}'s record was saved.`
+      );
     } else {
       const created = await createSeniorCitizen(payload);
       const next = buildRecord(created);

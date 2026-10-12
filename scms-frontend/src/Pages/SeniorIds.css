@@ -76,6 +76,8 @@
 .scms-sid .sid-callout { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 12px 16px; border: 1px solid #cfe2d5; border-radius: 10px; background: #f3faf5; color: #285a37; font-size: 13px; }
 .scms-sid .sid-callout > svg { flex-shrink: 0; width: 18px; height: 18px; }
 .scms-sid .sid-callout > span { flex: 1; min-width: 180px; }
+/* Approved records that cannot be issued an ID until Records completes them. */
+.scms-sid .sid-callout--attention { border-color: #f0d3a4; background: #fef3e2; color: #8a5208; }
 
 /* List and filters */
 .scms-sid .sid-panel { border: 1px solid var(--sid-border); border-radius: 14px; background: #fff; }
@@ -243,6 +245,8 @@
 }
 .scms-sid .sid-card-photo span { font-size: 7cqw; font-weight: 700; }
 .scms-sid .sid-card-photo small { font-size: 2.2cqw; text-transform: uppercase; letter-spacing: 0.08em; }
+/* The submitted 2x2 photo fills the box, cropped like a printed ID photo. */
+.scms-sid .sid-card-photo-img { width: 100%; height: 100%; object-fit: cover; }
 .scms-sid .sid-card-lines { position: absolute; top: 24cqw; left: 5cqw; right: 4cqw; display: flex; flex-direction: column; gap: 1.2cqw; margin: 0; }
 .scms-sid .sid-card-line { display: flex; align-items: baseline; gap: 1.6cqw; min-width: 0; }
 .scms-sid .sid-card-line--name { margin-right: 27cqw; }

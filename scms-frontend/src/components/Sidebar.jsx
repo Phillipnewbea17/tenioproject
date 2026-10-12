@@ -6,6 +6,7 @@ import {
   TbFileCheck,
   TbFlower,
   TbFolder,
+  TbGift,
   TbHome,
   TbId,
   TbLifebuoy,
@@ -38,6 +39,7 @@ const NAV_GROUPS = [
     label: "Communication",
     items: [
       { key: "announcements", label: "Announcements", icon: TbSpeakerphone },
+      { key: "benefits", label: "Benefits", icon: TbGift },
       { key: "birthday", label: "Birthday List", icon: TbCake },
       { key: "help-desk", label: "Help & Complaints", icon: TbLifebuoy },
     ],

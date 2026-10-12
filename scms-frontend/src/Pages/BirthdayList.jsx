@@ -69,6 +69,24 @@ function statusTone(daysUntil) {
   return "tone-later";
 }
 
+/**
+ * How far off a birthday is, in the largest unit that still reads clearly:
+ * days for the coming week, then whole weeks, then months. Upcoming
+ * Birthdays always lists the next few celebrants however distant they are,
+ * so staff need to see "In 6 Weeks", not a flat "Next Week".
+ */
+function countdownLabel(daysUntil) {
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "Tomorrow";
+  if (daysUntil < 7) return `In ${daysUntil} Days`;
+  if (daysUntil < 60) {
+    const weeks = Math.floor(daysUntil / 7);
+    return weeks === 1 ? "In 1 Week" : `In ${weeks} Weeks`;
+  }
+  const months = Math.round(daysUntil / 30);
+  return months === 1 ? "In 1 Month" : `In ${months} Months`;
+}
+
 const CELEBRATION_TONE = {
   "Gift Distributed": "tone-green",
   "Greeting Sent": "tone-blue",
@@ -631,7 +649,7 @@ useEffect(() => {
                     <FiCalendar />
                   </span>
                   <span className="upcoming-label">
-                    {s.daysUntil === 1 ? "Tomorrow" : s.daysUntil <= 7 ? `In ${s.daysUntil} Days` : "Next Week"}
+                    {countdownLabel(s.daysUntil)}
                   </span>
                   <span className="upcoming-name">{s.name}</span>
                   <span className="upcoming-age">{s.age} years old</span>

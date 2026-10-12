@@ -26,6 +26,7 @@ import {
   getSeniorCitizens,
   getSeniorIds,
   getSeniorId,
+  getSeniorIdPhoto,
   issueSeniorId,
   activateSeniorId,
   updateSeniorId,
@@ -49,7 +50,12 @@ const STATUS_INFO = {
 
 // Mirrors SeniorIdController: these count as the senior's current ID.
 const CURRENT_STATUSES = ["Pending Issuance", "Active", "For Replacement"];
-const INELIGIBLE_SENIOR_STATUSES = ["Archived", "Inactive", "Deceased"];
+
+// Only an Active record can be issued an ID. A record created from an
+// approved application is "Needs attention" until staff complete its birth
+// date, sex and purok in Records > Edit record.
+const ELIGIBLE_SENIOR_STATUS = "Active";
+
 const REPLACEMENT_REASONS = ["Lost", "Damaged", "Incorrect Information", "Other"];
 
 function initials(name) {
@@ -129,21 +135,28 @@ export default function SeniorIds() {
     setReloadKey((key) => key + 1);
   }
 
-  // Registered seniors who can still be issued an ID.
+  // Active records that have no current ID: these are the seniors waiting
+  // for one, and the only ones Issue ID offers.
   const eligibleSeniors = useMemo(() => {
     const withCurrentId = new Set(
       ids.filter((id) => CURRENT_STATUSES.includes(id.status)).map((id) => id.senior.id)
     );
     return seniors
-      .filter((senior) => !withCurrentId.has(senior.id) && !INELIGIBLE_SENIOR_STATUSES.includes(senior.status))
+      .filter((senior) => !withCurrentId.has(senior.id) && senior.status === ELIGIBLE_SENIOR_STATUS)
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [ids, seniors]);
+
+  // Records approved but not yet complete: no ID until staff finish them.
+  const incompleteSeniors = useMemo(
+    () => seniors.filter((senior) => senior.status === "Needs attention").length,
+    [seniors]
+  );
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return ids.filter((id) =>
       (!query || [id.idNumber, id.senior.name, id.senior.seniorId, id.senior.purok]
-        .some((value) => value.toLowerCase().includes(query))) &&
+        .some((value) => String(value || "").toLowerCase().includes(query))) &&
       (status === "All" || id.status === status)
     );
   }, [ids, search, status]);
@@ -156,7 +169,9 @@ export default function SeniorIds() {
   const countOf = (value) => ids.filter((id) => id.status === value).length;
   const stats = [
     { label: "Active IDs", value: countOf("Active"), icon: FiCreditCard, tone: "active" },
-    { label: "Pending issuance", value: countOf("Pending Issuance"), icon: FiClock, tone: "pending" },
+    // Cards assigned but not released, plus the Active records still waiting
+    // for an ID number - everyone the office has an ID to produce for.
+    { label: "Pending issuance", value: countOf("Pending Issuance") + eligibleSeniors.length, icon: FiClock, tone: "pending" },
     { label: "For replacement", value: countOf("For Replacement"), icon: FiRefreshCw, tone: "replace" },
     { label: "Inactive", value: countOf("Inactive"), icon: FiSlash, tone: "inactive" },
   ];
@@ -247,6 +262,14 @@ export default function SeniorIds() {
       <FiCreditCard aria-hidden="true" />
       <span><strong>{eligibleSeniors.length}</strong> registered {eligibleSeniors.length === 1 ? "senior does" : "seniors do"} not have an ID yet.</span>
       <button className="sid-text-button" type="button" onClick={() => setModal({ mode: "issue" })}>Issue an ID</button>
+    </div>}
+
+    {!loading && !error && incompleteSeniors > 0 && <div className="sid-callout sid-callout--attention">
+      <FiAlertCircle aria-hidden="true" />
+      <span>
+        <strong>{incompleteSeniors}</strong> approved {incompleteSeniors === 1 ? "record needs" : "records need"} attention
+        {" "}and cannot be issued an ID yet. Complete the birth date, sex and purok in Records.
+      </span>
     </div>}
 
     <section className="sid-panel" aria-labelledby="sid-list-title">
@@ -349,6 +372,41 @@ function fitClass(text, long, veryLong) {
 
 const CARD_STAMP = { "Pending Issuance": "Pending issuance", "For Replacement": "For replacement", Inactive: "Inactive" };
 
+/**
+ * The 2x2 photo the senior submitted with their registration, in the card's
+ * photo box. The file stays where the upload put it; this only streams it
+ * from the staff API. Seniors who sent no photo keep the initial letter.
+ */
+function CardPhoto({ seniorCitizenId, name }) {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    if (!seniorCitizenId) return undefined;
+
+    let alive = true;
+    let objectUrl = null;
+
+    getSeniorIdPhoto(seniorCitizenId)
+      .then((blob) => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => { if (alive) setUrl(null); });
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [seniorCitizenId]);
+
+  return <div className="sid-card-photo" aria-hidden="true">
+    {url
+      ? <img className="sid-card-photo-img" src={url} alt="" />
+      : <><span>{initials(name)}</span><small>Photo</small></>}
+  </div>;
+}
+
 /** OSCA ID card, laid out like the printed Office of Senior Citizens Affairs card. */
 function DigitalIdCard({ record }) {
   const { senior } = record;
@@ -367,7 +425,7 @@ function DigitalIdCard({ record }) {
         <strong className="sid-card-lgu">MUNICIPALITY OF UBAY</strong>
       </div>
     </header>
-    <div className="sid-card-photo" aria-hidden="true"><span>{initials(senior.name)}</span><small>Photo</small></div>
+    <CardPhoto seniorCitizenId={senior.id} name={senior.name} />
     <dl className="sid-card-lines">
       <div className="sid-card-line sid-card-line--name"><dt>Name :</dt><dd className={fitClass(senior.name, 22, 30)}>{senior.name}</dd></div>
       <div className="sid-card-line"><dt>Address:</dt><dd className={fitClass(address(senior.purok), 30, 40)}>{address(senior.purok)}</dd></div>
@@ -518,12 +576,14 @@ function IssueDialog({ seniors, initialSeniorId, onClose, onSave }) {
       <div className="sid-dialog-body">
         {saveError && <div className="sid-message sid-message--error" role="alert"><FiAlertCircle aria-hidden="true" /><span>{saveError}</span></div>}
         <fieldset className="sid-fieldset"><legend>Senior citizen</legend>
-          {seniors.length === 0 ? <p className="sid-muted">Every registered senior already has a current ID. Add or approve seniors in Records first.</p>
+          {/* Only Active records with no current ID. Records that still need
+              attention are left out until staff complete them in Records. */}
+          {seniors.length === 0 ? <p className="sid-muted">No senior is waiting for an ID. Every Active record already has a current ID; records that need attention have to be completed in Records &gt; Edit record first.</p>
           : <>
             <div className="sid-field">
               <label htmlFor="sid-senior-search">Find senior</label>
               <div className="sid-search-box"><FiSearch aria-hidden="true" />
-                <input id="sid-senior-search" type="search" data-initial-focus placeholder="Search name, record ID or purok…" value={query} onChange={(event) => setQuery(event.target.value)} />
+                <input id="sid-senior-search" type="search" data-initial-focus placeholder="Search name, record no. or purok…" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
             </div>
             <div className="sid-senior-list" role="radiogroup" aria-label="Seniors without an ID" aria-describedby={errors.seniorCitizenId ? "sid-seniorCitizenId-error" : undefined}>
@@ -531,7 +591,7 @@ function IssueDialog({ seniors, initialSeniorId, onClose, onSave }) {
               : matches.map((senior) => <label key={senior.id} className={`sid-senior-option${form.seniorCitizenId === senior.id ? " selected" : ""}`}>
                 <input type="radio" name="seniorCitizenId" value={senior.id} checked={form.seniorCitizenId === senior.id} onChange={() => set("seniorCitizenId", senior.id)} />
                 <span className="sid-avatar" aria-hidden="true">{initials(senior.name)}</span>
-                <span className="sid-senior-option-text"><strong>{senior.name}</strong><small>{senior.senior_id} · {senior.purok} · Age {senior.age}</small></span>
+                <span className="sid-senior-option-text"><strong>{senior.name}</strong><small>Record no. {senior.senior_id}</small></span>
               </label>)}
             </div>
             {errors.seniorCitizenId && <span id="sid-seniorCitizenId-error" className="sid-field-error">{errors.seniorCitizenId}</span>}

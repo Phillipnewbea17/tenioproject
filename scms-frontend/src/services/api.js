@@ -1383,6 +1383,34 @@ export async function addHelpRequestNote(id, note) {
   );
 }
 
+// BENEFITS ("Benefits & services" in the senior app)
+
+const benefitRequest = (path, options) =>
+  apiRequest(path, options, "Benefit request");
+
+// { benefits: [...], categories: [...], statuses: [...] }
+export async function getBenefits() {
+  return benefitRequest("/benefits");
+}
+
+export async function createBenefit(form) {
+  return benefitRequest("/benefits", {
+    method: "POST",
+    body: JSON.stringify(form),
+  });
+}
+
+export async function updateBenefit(id, form) {
+  return benefitRequest(`/benefits/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(form),
+  });
+}
+
+export async function deleteBenefit(id) {
+  return benefitRequest(`/benefits/${id}`, { method: "DELETE" });
+}
+
 // DASHBOARD
 
 // One summary per sidebar module (see DashboardController). Field names are

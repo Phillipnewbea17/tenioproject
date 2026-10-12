@@ -195,7 +195,7 @@ class ReportController extends Controller
                     'valid_id_uploaded' => 'Valid ID',
                     'birth_certificate_uploaded' => 'Birth certificate',
                     'proof_residence_uploaded' => 'Proof of residence',
-                    'photo_uploaded' => 'Photo',
+                    'photo_uploaded' => '2x2 photo',
                 ])->map(fn ($label, $field) => [
                     'document' => $label,
                     'uploaded' => $applications->filter(fn ($a) => $a->{$field})->count(),

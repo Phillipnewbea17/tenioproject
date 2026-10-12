@@ -9,6 +9,7 @@ const PATH_TO_KEY = {
   "/document-verification": "verification",
   "/records": "records",
   "/announcements": "announcements",
+  "/benefits": "benefits",
   "/birthday-list": "birthday",
   "/pension": "pension",
   "/user-management": "user-management",

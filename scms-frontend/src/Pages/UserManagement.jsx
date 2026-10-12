@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   FiAlertCircle,
   FiArrowDown,
@@ -10,11 +11,16 @@ import {
   FiClock,
   FiCopy,
   FiEdit2,
+  FiExternalLink,
   FiEye,
   FiEyeOff,
+  FiFilePlus,
   FiKey,
+  FiLink2,
   FiMoreHorizontal,
+  FiPhone,
   FiRefreshCw,
+  FiRotateCcw,
   FiSearch,
   FiShield,
   FiSmartphone,
@@ -24,6 +30,8 @@ import {
   FiUserX,
   FiUsers,
   FiX,
+  FiXCircle,
+  FiZoomIn,
 } from "react-icons/fi";
 import {
   getUsers,
@@ -31,7 +39,12 @@ import {
   updateUser,
   resetUserPassword,
   setAppUserStatus,
-  getRecentLogins,
+  resetAppUserAccess,
+  changeAppUserPhone,
+  getSeniorMatches,
+  linkAppUserToSenior,
+  createSeniorForAppUser,
+  getAppUserPhoto,
 } from "../services/api";
 import AppUserAvatar from "../components/AppUserAvatar";
 import "./UserManagement.css";
@@ -85,6 +98,30 @@ const EMPTY_FORM = {
 const EMPTY_PASSWORD_FORM = {
   password: "",
   confirmation: "",
+};
+
+// Registration documents, as Document Verification calls them.
+const VERIFICATION_TONE = {
+  Verified: "verified",
+  Pending: "pending",
+  Rejected: "rejected",
+};
+
+// Philippine mobile numbers in the senior app: 10 digits starting with 9,
+// shown to staff as "+63 9XX XXX XXXX".
+const PHONE_DIGITS = 10;
+
+// A senior who lost their phone keeps their account; only the number and
+// the trusted phones change. There is no email anywhere in the app.
+const EMPTY_PHONE_FORM = { phone: "", reason: "" };
+
+const EMPTY_SENIOR_FORM = {
+  name: "",
+  birth_date: "",
+  gender: "",
+  purok: "",
+  contact: "",
+  civil_status: "",
 };
 
 /* -------------------------------------------------------------------------- */
@@ -175,10 +212,55 @@ function appRoleLabel(role) {
   return APP_ROLE_LABELS[role] || "App user";
 }
 
+// "+63 955 140 2068" / "09551402068" / "9551402068" all mean 9551402068.
+function phoneDigits(value) {
+  return String(value || "")
+    .replace(/\D/g, "")
+    .replace(/^(?:0063|63|0)/, "")
+    .slice(0, PHONE_DIGITS);
+}
+
+function formatPhone(digits) {
+  const value = phoneDigits(digits);
+  if (!value) return "";
+
+  return `+63 ${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`.trim();
+}
+
+// "1950-03-08" -> "Mar 8, 1950". Dates from the API are plain days, so they
+// are read as local time to avoid showing the day before.
+function formatDay(value) {
+  if (!value) return "";
+  const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return String(value);
+
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+// A date the API sent, as { full, relative, time }; empty when there is none.
+function readDate(value) {
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return { full: "", relative: "", time: 0 };
+  }
+
+  return {
+    full: formatFullDate(date),
+    relative: formatRelative(date),
+    time: date.getTime(),
+  };
+}
+
 // Converts a merged user row (staff or app user) into the shape this page uses.
 function normalizeUser(user) {
-  const loginDate = user.last_login_at ? new Date(user.last_login_at) : null;
-  const hasLogin = loginDate && !Number.isNaN(loginDate.getTime());
+  const login = readDate(user.last_login_at);
+  const registered = readDate(user.registered_at);
+  const deactivated = readDate(user.deactivated_at);
   const type = user.type === "app_user" ? "app_user" : "staff";
 
   return {
@@ -193,11 +275,22 @@ function normalizeUser(user) {
     role: type === "staff" ? normalizeRole(user.role) : user.role || "senior",
     status: user.status || "Active",
     hasPhoto: Boolean(user.has_photo),
+    // "profile" (set in the app) or "id_photo" (from the uploaded documents).
+    photoSource: user.photo_source || null,
+    birthDate: user.birth_date || "",
     linked: user.linked ?? null,
     senior: user.senior || null,
-    lastLoginRelative: hasLogin ? formatRelative(loginDate) : "",
-    lastLoginFull: hasLogin ? formatFullDate(loginDate) : "",
-    lastLoginTime: hasLogin ? loginDate.getTime() : 0,
+    linkedBy: user.linked_by || "",
+    // The registration documents on Document Verification, when there are any.
+    verification: user.verification || null,
+    registeredFull: registered.full,
+    registeredRelative: registered.relative,
+    deactivatedFull: deactivated.full,
+    deactivatedBy: user.deactivated_by || "",
+    deactivationReason: user.deactivation_reason || "",
+    lastLoginRelative: login.relative,
+    lastLoginFull: login.full,
+    lastLoginTime: login.time,
   };
 }
 
@@ -482,17 +575,110 @@ function RoleCell({ user }) {
   );
 }
 
-function TypeBadge({ type }) {
-  return type === "app_user" ? (
-    <span className="um-badge um-badge-user">
-      <FiSmartphone />
-      App user
+// Type and role in one line: "App user · Senior", "Staff · Administrator".
+function AccountCell({ user }) {
+  const staff = user.type === "staff";
+
+  return (
+    <span className={`um-badge ${staff ? "um-badge-admin" : "um-badge-user"}`}>
+      {staff ? <FiShield /> : <FiSmartphone />}
+      {staff ? "Staff" : "App user"}
+      <span className="um-badge-sep">·</span>
+      {staff ? user.role : appRoleLabel(user.role)}
     </span>
-  ) : (
-    <span className="um-badge um-badge-admin">
-      <FiShield />
-      Staff
-    </span>
+  );
+}
+
+// Where the senior's registration documents stand, linking to the page where
+// staff check them.
+function VerificationCell({ user }) {
+  const status = user.verification?.status;
+
+  if (!status) {
+    return (
+      <span className="um-faint">
+        No registration documents sent from the app yet
+      </span>
+    );
+  }
+
+  const reference = user.verification.application_id || user.name;
+  const icon =
+    status === "Verified" ? (
+      <FiCheckCircle />
+    ) : status === "Rejected" ? (
+      <FiXCircle />
+    ) : (
+      <FiClock />
+    );
+
+  return (
+    <Link
+      className={`um-verify ${VERIFICATION_TONE[status] || "pending"}`}
+      to={`/document-verification?search=${encodeURIComponent(reference)}`}
+      title="Open Document Verification"
+    >
+      {icon}
+      {status}
+      <FiExternalLink aria-hidden="true" />
+    </Link>
+  );
+}
+
+// The photo, large. Seniors can set their own photo in the app; when they
+// never did, the 2x2 photo from their uploaded documents is shown instead,
+// and said so.
+function PhotoViewer({ user, onClose }) {
+  const [url, setUrl] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl = null;
+
+    getAppUserPhoto(user.id)
+      .then((blob) => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => alive && setError("The photo could not be loaded."));
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [user.id]);
+
+  const isIdPhoto = user.photoSource === "id_photo";
+
+  return (
+    <Modal title={isIdPhoto ? "ID photo" : "App profile photo"} onClose={onClose}>
+      <div className="um-modal-body um-photo-body">
+        {error ? (
+          <div className="um-banner" role="alert">
+            <FiAlertCircle aria-hidden="true" />
+            {error}
+          </div>
+        ) : url ? (
+          <img className="um-photo-large" src={url} alt={`${user.name}`} />
+        ) : (
+          <p className="um-muted">Loading the photo…</p>
+        )}
+
+        <p className="um-modal-note">
+          {isIdPhoto
+            ? "This is the 2x2 ID photo uploaded with the registration documents, not a photo the senior set."
+            : "The photo this senior set in the mobile app."}
+        </p>
+      </div>
+
+      <div className="um-modal-actions">
+        <button type="button" className="um-btn um-btn-secondary" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -677,105 +863,6 @@ function ActionMenu({ label, items, disabled }) {
   );
 }
 
-// Recent logins panel. Fetches its own data and refreshes when reloadKey
-// changes (the page's Refresh/reload bumps it).
-function RecentLogins({ reloadKey }) {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let alive = true;
-    getRecentLogins()
-      .then((data) => {
-        if (!alive) return;
-        setRows(Array.isArray(data) ? data : []);
-        setError("");
-      })
-      .catch((err) => alive && setError(err.message || "Failed to load recent logins."))
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, [reloadKey]);
-
-  return (
-    <section className="um-panel um-recent">
-      <div className="um-recent-head">
-        <h2>
-          <FiClock aria-hidden="true" /> Recent logins
-        </h2>
-        <span className="um-muted">The latest staff and app sign-ins.</span>
-      </div>
-
-      {loading && <p className="um-muted um-app-loading">Loading…</p>}
-
-      {!loading && error && (
-        <div className="um-state" role="alert">
-          <span className="um-state-icon error">
-            <FiAlertCircle />
-          </span>
-          <h3>Recent logins could not be loaded</h3>
-          <p>{error}</p>
-        </div>
-      )}
-
-      {!loading && !error && rows.length === 0 && (
-        <p className="um-muted um-app-loading">No logins recorded yet.</p>
-      )}
-
-      {!loading && !error && rows.length > 0 && (
-        <div className="um-table-wrap">
-          <table className="um-table">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Type</th>
-                <th className="um-col-hide-sm">When</th>
-                <th className="um-col-hide-sm">IP · Device</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const when = row.logged_in_at ? new Date(row.logged_in_at) : null;
-                const hasWhen = when && !Number.isNaN(when.getTime());
-                return (
-                  <tr key={row.id}>
-                    <td>
-                      <div className="um-user-cell">
-                        <span className="um-avatar">{initials(row.name)}</span>
-                        <span className="um-user-text">
-                          <strong>{row.name}</strong>
-                          {row.detail && <small>{row.detail}</small>}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <TypeBadge type={row.type} />
-                    </td>
-                    <td className="um-col-hide-sm">
-                      {hasWhen ? (
-                        <time title={formatFullDate(when)} className="um-muted">
-                          {formatRelative(when)}
-                        </time>
-                      ) : (
-                        <span className="um-faint">—</span>
-                      )}
-                    </td>
-                    <td className="um-col-hide-sm um-muted">
-                      {[row.ip, row.device].filter(Boolean).join(" · ") || "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
@@ -808,6 +895,22 @@ export default function UserManagement() {
   const [passwordForm, setPasswordForm] = useState(EMPTY_PASSWORD_FORM);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
+
+  // App-user modals: deactivate / reset access reason, the new phone number,
+  // and linking to a senior citizen record (search an existing one, or fill
+  // in a new record from what the app user told us).
+  const [reason, setReason] = useState("");
+  const [phoneForm, setPhoneForm] = useState(EMPTY_PHONE_FORM);
+  const [seniorForm, setSeniorForm] = useState(EMPTY_SENIOR_FORM);
+  const [linkMode, setLinkMode] = useState("search");
+  const [linkSearch, setLinkSearch] = useState("");
+  const [selectedSeniorId, setSelectedSeniorId] = useState(null);
+  const [matches, setMatches] = useState({
+    loading: false,
+    rows: [],
+    suggested: true,
+    error: "",
+  });
 
   const [toasts, setToasts] = useState([]);
   const toastTimers = useRef(new Map());
@@ -847,6 +950,48 @@ export default function UserManagement() {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  // Senior citizen records that can be linked. With an empty box the API
+  // suggests records that look like this app user; typing searches by name,
+  // record number or date of birth.
+  const linkingId = modal?.type === "link" ? modal.user.id : null;
+  const searchingRecords = linkMode === "search";
+
+  useEffect(() => {
+    if (!linkingId || !searchingRecords) return undefined;
+
+    let cancelled = false;
+
+    const timer = setTimeout(() => {
+      setMatches((previous) => ({ ...previous, loading: true, error: "" }));
+
+      getSeniorMatches(linkingId, linkSearch.trim())
+        .then((result) => {
+          if (cancelled) return;
+          setMatches({
+            loading: false,
+            rows: Array.isArray(result?.matches) ? result.matches : [],
+            suggested: Boolean(result?.suggested),
+            error: "",
+          });
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          console.error("Failed to load senior records:", error);
+          setMatches({
+            loading: false,
+            rows: [],
+            suggested: false,
+            error: error.message || "Unable to load senior citizen records.",
+          });
+        });
+    }, linkSearch ? 300 : 0);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [linkingId, searchingRecords, linkSearch]);
 
   /* ------------------------------ Derived data ----------------------------- */
 
@@ -1014,6 +1159,13 @@ export default function UserManagement() {
     setPasswordForm(EMPTY_PASSWORD_FORM);
     setErrors({});
     setFormError("");
+    setReason("");
+    setPhoneForm(EMPTY_PHONE_FORM);
+    setSeniorForm(EMPTY_SENIOR_FORM);
+    setLinkMode("search");
+    setLinkSearch("");
+    setSelectedSeniorId(null);
+    setMatches({ loading: false, rows: [], suggested: true, error: "" });
   };
 
   const requestClose = () => {
@@ -1048,6 +1200,33 @@ export default function UserManagement() {
     setModal({ type: "view", user });
   };
 
+  const openPhotoModal = (user) => {
+    setModal({ type: "photo", user, from: modal });
+  };
+
+  // Link to a senior record. The "new record" form starts from what the app
+  // user told us in the app, so staff only fill in what is missing.
+  const openLinkModal = (user) => {
+    resetModal();
+    setSeniorForm({
+      ...EMPTY_SENIOR_FORM,
+      name: user.name,
+      birth_date: user.birthDate || "",
+      contact: phoneDigits(user.phone),
+    });
+    setModal({ type: "link", user });
+  };
+
+  const openResetAccessModal = (user) => {
+    resetModal();
+    setModal({ type: "reset-access", user });
+  };
+
+  const openPhoneModal = (user) => {
+    resetModal();
+    setModal({ type: "phone", user });
+  };
+
   const requestToggleStatus = (user) => {
     if (user.status === "Active") {
       const reason = deactivateBlockedReason(user);
@@ -1078,6 +1257,13 @@ export default function UserManagement() {
   // Usernames are lowercase and never contain spaces.
   const updateUsername = (event) =>
     setField("username", event.target.value.toLowerCase().replace(/\s+/g, ""));
+
+  const updateSeniorForm = (field) => (event) => {
+    const { value } = event.target;
+    setSeniorForm((previous) => ({ ...previous, [field]: value }));
+    setErrors((previous) => ({ ...previous, [field]: undefined }));
+    setFormError("");
+  };
 
   const setPasswordField = (field, value) => {
     setPasswordForm((previous) => ({ ...previous, [field]: value }));
@@ -1181,7 +1367,7 @@ export default function UserManagement() {
     try {
       const updated =
         user.type === "app_user"
-          ? await setAppUserStatus(user.id, nextStatus)
+          ? await setAppUserStatus(user.id, nextStatus, reason.trim())
           : await updateUser(user.id, { status: nextStatus });
       replaceUser(updated);
       setCounts((previous) =>
@@ -1204,6 +1390,133 @@ export default function UserManagement() {
       pushToast(error.message || "Unable to change user status.", "error");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  /* --------------------------- App user actions ---------------------------- */
+
+  // Signs the senior out everywhere and forgets every trusted phone, for
+  // someone who lost the phone they used to log in.
+  const submitResetAccess = async () => {
+    const user = modal.user;
+    setBusyId(user.uid);
+
+    try {
+      replaceUser(await resetAppUserAccess(user.id, reason.trim()));
+      pushToast(
+        `${user.name} was signed out everywhere. They can log in again with a code sent to ${user.phone}.`
+      );
+      resetModal();
+    } catch (error) {
+      console.error("Failed to reset access:", error);
+      pushToast(error.message || "Unable to reset access.", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const submitPhoneChange = async (event) => {
+    event.preventDefault();
+
+    const user = modal.user;
+    const digits = phoneDigits(phoneForm.phone);
+
+    if (digits.length !== PHONE_DIGITS || !digits.startsWith("9")) {
+      setErrors({
+        phone: "Enter a 10-digit mobile number that starts with 9, like 9171234567.",
+      });
+      return;
+    }
+
+    if (digits === phoneDigits(user.phone)) {
+      setErrors({ phone: "This is already the number on the account." });
+      return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      replaceUser(
+        await changeAppUserPhone(user.id, digits, phoneForm.reason.trim())
+      );
+      pushToast(`${user.name}'s mobile number is now ${formatPhone(digits)}.`);
+      resetModal();
+    } catch (error) {
+      showSaveFailure(error, "Unable to change the mobile number.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submitLink = async () => {
+    const user = modal.user;
+
+    if (!selectedSeniorId) {
+      setFormError("Choose the senior citizen record to link.");
+      return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const updated = await linkAppUserToSenior(user.id, selectedSeniorId);
+      replaceUser(updated);
+      pushToast(
+        `${user.name} is now linked to ${updated.senior?.senior_id || "the record"}.`
+      );
+      resetModal();
+    } catch (error) {
+      showSaveFailure(error, "Unable to link the senior citizen record.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const submitNewSenior = async (event) => {
+    event.preventDefault();
+
+    const user = modal.user;
+    const found = {};
+    const name = seniorForm.name.trim();
+    const purok = seniorForm.purok.trim();
+
+    if (!name) found.name = "Enter the senior's full name.";
+    if (!seniorForm.birth_date) found.birth_date = "Enter the date of birth.";
+    if (!seniorForm.gender) found.gender = "Choose male or female.";
+    if (!purok) found.purok = "Enter the purok.";
+
+    if (Object.keys(found).length > 0) {
+      setErrors(found);
+      return;
+    }
+
+    setSaving(true);
+    setFormError("");
+
+    try {
+      const updated = await createSeniorForAppUser(user.id, {
+        name,
+        birth_date: seniorForm.birth_date,
+        gender: seniorForm.gender,
+        purok,
+        contact: seniorForm.contact.trim() || null,
+        civil_status: seniorForm.civil_status || null,
+      });
+
+      replaceUser(updated);
+      pushToast(
+        `Senior record ${updated.senior?.senior_id || ""} was created and linked to ${user.name}.`.replace(
+          "  ",
+          " "
+        )
+      );
+      resetModal();
+    } catch (error) {
+      showSaveFailure(error, "Unable to create the senior citizen record.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1308,7 +1621,8 @@ export default function UserManagement() {
       onClick: () => requestToggleStatus(user),
     };
 
-    // App users: only view and activate/deactivate (no role or password edits).
+    // App users have no role or password. Staff can link their record and
+    // help them back in after a lost phone.
     if (user.type === "app_user") {
       return [
         {
@@ -1316,6 +1630,28 @@ export default function UserManagement() {
           label: "View details",
           icon: <FiEye />,
           onClick: () => openViewModal(user),
+        },
+        ...(user.linked
+          ? []
+          : [
+              {
+                key: "link",
+                label: "Link to senior record",
+                icon: <FiLink2 />,
+                onClick: () => openLinkModal(user),
+              },
+            ]),
+        {
+          key: "reset-access",
+          label: "Reset access",
+          icon: <FiRotateCcw />,
+          onClick: () => openResetAccessModal(user),
+        },
+        {
+          key: "phone",
+          label: "Change phone number",
+          icon: <FiPhone />,
+          onClick: () => openPhoneModal(user),
         },
         { key: "divider", divider: true },
         statusItem,
@@ -1534,12 +1870,6 @@ export default function UserManagement() {
                     sort={sort}
                     onSort={handleSort}
                   />
-                  <SortHeader
-                    label="Type"
-                    sortKey="type"
-                    sort={sort}
-                    onSort={handleSort}
-                  />
                   <th className="um-col-hide-xs">Email or phone</th>
                   <SortHeader
                     label="Role"
@@ -1573,9 +1903,6 @@ export default function UserManagement() {
                           <span className="um-skeleton um-skeleton-avatar" />
                           <span className="um-skeleton um-skeleton-line" />
                         </div>
-                      </td>
-                      <td>
-                        <span className="um-skeleton um-skeleton-pill" />
                       </td>
                       <td className="um-col-hide-xs">
                         <span className="um-skeleton um-skeleton-line" />
@@ -1630,9 +1957,6 @@ export default function UserManagement() {
                               )}
                             </span>
                           </button>
-                        </td>
-                        <td>
-                          <TypeBadge type={user.type} />
                         </td>
                         <td className="um-email um-col-hide-xs">
                           {user.type === "staff" ? user.email : user.phone}
@@ -1735,71 +2059,150 @@ export default function UserManagement() {
         )}
       </section>
 
-      {/* Recent logins */}
-      <RecentLogins reloadKey={reloadKey} />
-
       {/* View details */}
       {modal?.type === "view" && (
         <Modal title="User details" onClose={requestClose}>
           <div className="um-modal-body">
             <div className="um-profile">
-              <Avatar user={modal.user} large />
+              {modal.user.type === "app_user" && modal.user.hasPhoto ? (
+                <button
+                  type="button"
+                  className="um-photo-btn"
+                  onClick={() => openPhotoModal(modal.user)}
+                  title={
+                    modal.user.photoSource === "id_photo"
+                      ? "See the ID photo"
+                      : "See the photo"
+                  }
+                  aria-label={`See ${modal.user.name}'s photo`}
+                >
+                  <Avatar user={modal.user} large />
+                  <span className="um-photo-zoom" aria-hidden="true">
+                    <FiZoomIn />
+                  </span>
+                </button>
+              ) : (
+                <Avatar user={modal.user} large />
+              )}
               <div>
                 <h3>
                   {modal.user.name}
                   {isSelf(modal.user) && <span className="um-you">You</span>}
                 </h3>
-                {modal.user.type === "staff" && modal.user.username ? (
-                  <p>@{modal.user.username}</p>
-                ) : modal.user.type === "app_user" ? (
-                  <p>{modal.user.phone}</p>
-                ) : null}
+                {/* The phone (app) or username (staff) is shown here only, so
+                    the details below never repeat it. */}
+                <p>
+                  {modal.user.type === "staff"
+                    ? modal.user.username
+                      ? `@${modal.user.username}`
+                      : modal.user.email
+                    : modal.user.phone}
+                </p>
+                {modal.user.type === "app_user" &&
+                  modal.user.photoSource === "id_photo" && (
+                    <p className="um-photo-note">ID photo from documents</p>
+                  )}
               </div>
             </div>
 
             <dl className="um-details">
+              {/* Type and role used to be two rows saying the same thing. */}
               <div>
-                <dt>Type</dt>
+                <dt>Account</dt>
                 <dd>
-                  <TypeBadge type={modal.user.type} />
+                  <AccountCell user={modal.user} />
                 </dd>
               </div>
               <div>
-                <dt>{modal.user.type === "staff" ? "Email" : "Phone"}</dt>
+                <dt>{modal.user.type === "staff" ? "Email" : "Date of birth"}</dt>
                 <dd>
-                  {(modal.user.type === "staff"
-                    ? modal.user.email
-                    : modal.user.phone) || "-"}
+                  {modal.user.type === "staff"
+                    ? modal.user.email || "-"
+                    : formatDay(modal.user.birthDate) || "Not given"}
                 </dd>
               </div>
-              <div>
-                <dt>Role</dt>
-                <dd>
-                  <RoleCell user={modal.user} />
-                </dd>
-              </div>
+
               {modal.user.type === "app_user" && (
-                <div>
-                  <dt>Senior record</dt>
-                  <dd>
-                    {modal.user.senior
-                      ? `${modal.user.senior.senior_id} · ${modal.user.senior.name}`
-                      : "Not linked yet"}
-                  </dd>
-                </div>
+                <>
+                  <div>
+                    <dt>Senior record</dt>
+                    <dd>
+                      {modal.user.senior ? (
+                        <>
+                          {modal.user.senior.senior_id} ·{" "}
+                          {modal.user.senior.name}
+                          {modal.user.linkedBy && (
+                            <small className="um-dd-note">
+                              Linked by {modal.user.linkedBy}
+                            </small>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <span className="um-faint">Not linked yet</span>
+                          <button
+                            type="button"
+                            className="um-btn um-btn-secondary um-btn-sm um-dd-action"
+                            onClick={() => openLinkModal(modal.user)}
+                          >
+                            <FiLink2 />
+                            Link to senior record
+                          </button>
+                        </>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Document verification</dt>
+                    <dd>
+                      <VerificationCell user={modal.user} />
+                    </dd>
+                  </div>
+                </>
               )}
+
               <div>
                 <dt>Status</dt>
                 <dd>
                   <StatusBadge status={modal.user.status} />
+                  {modal.user.status === "Inactive" &&
+                    modal.user.deactivatedFull && (
+                      <small className="um-dd-note">
+                        Deactivated by {modal.user.deactivatedBy || "staff"} on{" "}
+                        {modal.user.deactivatedFull}
+                        {modal.user.deactivationReason
+                          ? ` — ${modal.user.deactivationReason}`
+                          : ""}
+                      </small>
+                    )}
                 </dd>
               </div>
+              <div>
+                <dt>Registered on</dt>
+                <dd>
+                  {modal.user.registeredFull || "Not recorded"}
+                  {modal.user.registeredRelative && (
+                    <small className="um-dd-note">
+                      {modal.user.registeredRelative}
+                    </small>
+                  )}
+                </dd>
+              </div>
+
               <div>
                 <dt>Last login</dt>
                 <dd>
                   {modal.user.lastLoginFull
                     ? `${modal.user.lastLoginFull} (${modal.user.lastLoginRelative})`
                     : "No login yet"}
+                </dd>
+              </div>
+              <div>
+                <dt>Sign-in</dt>
+                <dd>
+                  {modal.user.type === "staff"
+                    ? "Username and password"
+                    : "Mobile number and MPIN"}
                 </dd>
               </div>
             </dl>
@@ -1826,21 +2229,51 @@ export default function UserManagement() {
                 </button>
               </>
             ) : (
-              <button
-                type="button"
-                className={`um-btn ${
-                  modal.user.status === "Active"
-                    ? "um-btn-danger"
-                    : "um-btn-primary"
-                }`}
-                onClick={() => requestToggleStatus(modal.user)}
-              >
-                {modal.user.status === "Active" ? <FiUserX /> : <FiUserCheck />}
-                {modal.user.status === "Active" ? "Deactivate" : "Activate"}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="um-btn um-btn-secondary"
+                  onClick={() => openResetAccessModal(modal.user)}
+                >
+                  <FiRotateCcw />
+                  Reset access
+                </button>
+                <button
+                  type="button"
+                  className="um-btn um-btn-secondary"
+                  onClick={() => openPhoneModal(modal.user)}
+                >
+                  <FiPhone />
+                  Change phone number
+                </button>
+                <button
+                  type="button"
+                  className={`um-btn ${
+                    modal.user.status === "Active"
+                      ? "um-btn-danger"
+                      : "um-btn-primary"
+                  }`}
+                  onClick={() => requestToggleStatus(modal.user)}
+                >
+                  {modal.user.status === "Active" ? (
+                    <FiUserX />
+                  ) : (
+                    <FiUserCheck />
+                  )}
+                  {modal.user.status === "Active" ? "Deactivate" : "Reactivate"}
+                </button>
+              </>
             )}
           </div>
         </Modal>
+      )}
+
+      {/* The photo, large (app users only) */}
+      {modal?.type === "photo" && (
+        <PhotoViewer
+          user={modal.user}
+          onClose={() => setModal(modal.from || null)}
+        />
       )}
 
       {/* Add / edit (staff only) */}
@@ -2029,14 +2462,465 @@ export default function UserManagement() {
         </Modal>
       )}
 
-      {/* Deactivate confirmation */}
-      {modal?.type === "deactivate" && (
-        <Modal title="Deactivate user?" onClose={requestClose}>
+      {/* Link to a senior citizen record (app users only) */}
+      {modal?.type === "link" && (
+        <Modal title="Link to senior record" onClose={requestClose}>
           <div className="um-modal-body">
             <p className="um-modal-note">
-              <strong>{modal.user.name}</strong> will no longer be able to log
-              in. You can activate them again at any time.
+              Linking lets <strong>{modal.user.name}</strong> see their pension,
+              OSCA ID and requests in the app. One record belongs to one app
+              user only.
             </p>
+
+            {formError && (
+              <div className="um-banner" role="alert">
+                <FiAlertCircle aria-hidden="true" />
+                {formError}
+              </div>
+            )}
+
+            <div className="um-tabs" role="tablist" aria-label="How to link">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={linkMode === "search"}
+                className={`um-tab${linkMode === "search" ? " active" : ""}`}
+                onClick={() => {
+                  setLinkMode("search");
+                  setFormError("");
+                }}
+              >
+                <FiSearch />
+                Find an existing record
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={linkMode === "create"}
+                className={`um-tab${linkMode === "create" ? " active" : ""}`}
+                onClick={() => {
+                  setLinkMode("create");
+                  setFormError("");
+                }}
+              >
+                <FiFilePlus />
+                Create a new record
+              </button>
+            </div>
+
+            {linkMode === "search" ? (
+              <>
+                <div className="um-search um-link-search">
+                  <FiSearch aria-hidden="true" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, record number or date of birth (1950-03-08)"
+                    aria-label="Search senior citizen records"
+                    value={linkSearch}
+                    onChange={(event) => {
+                      setLinkSearch(event.target.value);
+                      setSelectedSeniorId(null);
+                    }}
+                    autoFocus
+                  />
+                  {linkSearch && (
+                    <button
+                      type="button"
+                      className="um-search-clear"
+                      onClick={() => setLinkSearch("")}
+                      aria-label="Clear search"
+                    >
+                      <FiX />
+                    </button>
+                  )}
+                </div>
+
+                {matches.suggested && !matches.loading && matches.rows.length > 0 && (
+                  <p className="um-field-hint">
+                    Records with the same surname or date of birth as this app
+                    user.
+                  </p>
+                )}
+
+                {matches.error && (
+                  <div className="um-banner" role="alert">
+                    <FiAlertCircle aria-hidden="true" />
+                    {matches.error}
+                  </div>
+                )}
+
+                <div className="um-matches">
+                  {matches.loading && (
+                    <p className="um-muted um-matches-empty">Searching…</p>
+                  )}
+
+                  {!matches.loading && !matches.error && matches.rows.length === 0 && (
+                    <p className="um-muted um-matches-empty">
+                      No record to link yet. Try another spelling, or create a
+                      new record from this app user's details.
+                    </p>
+                  )}
+
+                  {!matches.loading &&
+                    matches.rows.map((senior) => (
+                      <label
+                        key={senior.id}
+                        className={`um-match${
+                          selectedSeniorId === senior.id ? " selected" : ""
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="um-senior-match"
+                          checked={selectedSeniorId === senior.id}
+                          onChange={() => {
+                            setSelectedSeniorId(senior.id);
+                            setFormError("");
+                          }}
+                        />
+                        <span className="um-match-text">
+                          <strong>{senior.name}</strong>
+                          <small>
+                            {[
+                              senior.senior_id,
+                              senior.birth_date
+                                ? formatDay(senior.birth_date)
+                                : "",
+                              senior.purok ? `Purok ${senior.purok}` : "",
+                              senior.status,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        </span>
+                      </label>
+                    ))}
+                </div>
+              </>
+            ) : (
+              <form
+                className="um-form um-link-form"
+                onSubmit={submitNewSenior}
+                noValidate
+                id="um-new-senior-form"
+              >
+                <p className="um-field-hint">
+                  Prefilled with what {modal.user.name} entered in the app.
+                  Check it against their papers before saving.
+                </p>
+
+                <Field
+                  label="Full name"
+                  htmlFor="um-senior-name"
+                  error={errors.name}
+                >
+                  <input
+                    id="um-senior-name"
+                    type="text"
+                    value={seniorForm.name}
+                    onChange={updateSeniorForm("name")}
+                  />
+                </Field>
+
+                <div className="um-field-row">
+                  <Field
+                    label="Date of birth"
+                    htmlFor="um-senior-birth"
+                    error={errors.birth_date}
+                    hint="The senior must be 60 or older."
+                  >
+                    <input
+                      id="um-senior-birth"
+                      type="date"
+                      value={seniorForm.birth_date}
+                      onChange={updateSeniorForm("birth_date")}
+                    />
+                  </Field>
+
+                  <Field label="Sex" htmlFor="um-senior-gender" error={errors.gender}>
+                    <select
+                      id="um-senior-gender"
+                      value={seniorForm.gender}
+                      onChange={updateSeniorForm("gender")}
+                    >
+                      <option value="">Choose…</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <div className="um-field-row">
+                  <Field label="Purok" htmlFor="um-senior-purok" error={errors.purok}>
+                    <input
+                      id="um-senior-purok"
+                      type="text"
+                      value={seniorForm.purok}
+                      onChange={updateSeniorForm("purok")}
+                    />
+                  </Field>
+
+                  <Field
+                    label="Civil status"
+                    htmlFor="um-senior-civil"
+                    error={errors.civil_status}
+                  >
+                    <select
+                      id="um-senior-civil"
+                      value={seniorForm.civil_status}
+                      onChange={updateSeniorForm("civil_status")}
+                    >
+                      <option value="">Not given</option>
+                      <option value="Single">Single</option>
+                      <option value="Married">Married</option>
+                      <option value="Widowed">Widowed</option>
+                      <option value="Separated">Separated</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <Field
+                  label="Contact number"
+                  htmlFor="um-senior-contact"
+                  error={errors.contact}
+                  hint="Defaults to the number they use in the app."
+                >
+                  <input
+                    id="um-senior-contact"
+                    type="tel"
+                    value={seniorForm.contact}
+                    onChange={updateSeniorForm("contact")}
+                  />
+                </Field>
+              </form>
+            )}
+          </div>
+
+          <div className="um-modal-actions">
+            <button
+              type="button"
+              className="um-btn um-btn-secondary"
+              onClick={requestClose}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            {linkMode === "search" ? (
+              <button
+                type="button"
+                className="um-btn um-btn-primary"
+                onClick={submitLink}
+                disabled={saving || !selectedSeniorId}
+              >
+                <FiLink2 />
+                {saving ? "Linking..." : "Link record"}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                form="um-new-senior-form"
+                className="um-btn um-btn-primary"
+                disabled={saving}
+              >
+                <FiFilePlus />
+                {saving ? "Saving..." : "Create record and link"}
+              </button>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Reset access (lost phone) */}
+      {modal?.type === "reset-access" && (
+        <Modal title="Reset access?" onClose={requestClose}>
+          <div className="um-modal-body">
+            <p className="um-modal-note">
+              <strong>{modal.user.name}</strong> will be signed out on every
+              phone, and every phone that was trusted will have to prove itself
+              again with a code sent to <strong>{modal.user.phone}</strong>.
+              Their MPIN is not changed; they can set a new one with "Forgot
+              MPIN" in the app.
+            </p>
+
+            <p className="um-field-hint">
+              If they also lost the number, change the phone number first.
+            </p>
+
+            <Field
+              label="Reason (optional)"
+              htmlFor="um-reset-access-reason"
+              hint="Kept in the Activity Log."
+            >
+              <textarea
+                id="um-reset-access-reason"
+                rows={2}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                maxLength={500}
+              />
+            </Field>
+          </div>
+
+          <div className="um-modal-actions">
+            <button
+              type="button"
+              className="um-btn um-btn-secondary"
+              onClick={requestClose}
+              disabled={busyId !== null}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="um-btn um-btn-primary"
+              onClick={submitResetAccess}
+              disabled={busyId !== null}
+            >
+              <FiRotateCcw />
+              {busyId !== null ? "Resetting..." : "Reset access"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Change phone number (lost phone and SIM) */}
+      {modal?.type === "phone" && (
+        <Modal title="Change phone number" onClose={requestClose}>
+          <form className="um-form" onSubmit={submitPhoneChange} noValidate>
+            <div className="um-modal-body">
+              <p className="um-modal-note">
+                <strong>{modal.user.name}</strong> signs in with their mobile
+                number and MPIN, so a new number is all they need after losing
+                their phone. They keep their MPIN, their senior record and
+                their requests.
+              </p>
+
+              {formError && (
+                <div className="um-banner" role="alert">
+                  <FiAlertCircle aria-hidden="true" />
+                  {formError}
+                </div>
+              )}
+
+              <Field label="Current number">
+                <p className="um-static-value">{modal.user.phone}</p>
+              </Field>
+
+              <Field
+                label="New mobile number"
+                htmlFor="um-new-phone"
+                error={errors.phone}
+                hint="10 digits starting with 9, for example 9171234567."
+              >
+                <div className="um-phone-input">
+                  <span className="um-phone-prefix">+63</span>
+                  <input
+                    id="um-new-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={phoneForm.phone}
+                    onChange={(event) => {
+                      setPhoneForm((previous) => ({
+                        ...previous,
+                        phone: phoneDigits(event.target.value),
+                      }));
+                      setErrors({});
+                      setFormError("");
+                    }}
+                    autoFocus
+                    aria-invalid={Boolean(errors.phone)}
+                    aria-describedby={errors.phone ? "um-new-phone-error" : undefined}
+                  />
+                </div>
+              </Field>
+
+              <Field
+                label="Reason (optional)"
+                htmlFor="um-phone-reason"
+                hint="Kept in the Activity Log."
+              >
+                <textarea
+                  id="um-phone-reason"
+                  rows={2}
+                  maxLength={500}
+                  value={phoneForm.reason}
+                  onChange={(event) =>
+                    setPhoneForm((previous) => ({
+                      ...previous,
+                      reason: event.target.value,
+                    }))
+                  }
+                />
+              </Field>
+
+              <p className="um-field-hint">
+                The old number is signed out at once and stops being a trusted
+                phone.
+              </p>
+            </div>
+
+            <div className="um-modal-actions">
+              <button
+                type="button"
+                className="um-btn um-btn-secondary"
+                onClick={requestClose}
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="um-btn um-btn-primary" disabled={saving}>
+                <FiPhone />
+                {saving ? "Saving..." : "Change number"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Deactivate confirmation */}
+      {modal?.type === "deactivate" && (
+        <Modal
+          title={
+            modal.user.type === "app_user"
+              ? "Deactivate app user?"
+              : "Deactivate user?"
+          }
+          onClose={requestClose}
+        >
+          <div className="um-modal-body">
+            <p className="um-modal-note">
+              {modal.user.type === "app_user" ? (
+                <>
+                  <strong>{modal.user.name}</strong> can no longer log in to the
+                  mobile app, and is signed out on every phone straight away.
+                  Their senior record, requests and documents are kept, and you
+                  can reactivate them at any time.
+                </>
+              ) : (
+                <>
+                  <strong>{modal.user.name}</strong> will no longer be able to
+                  log in. You can activate them again at any time.
+                </>
+              )}
+            </p>
+
+            {modal.user.type === "app_user" && (
+              <Field
+                label="Reason (optional)"
+                htmlFor="um-deactivate-reason"
+                hint="Shown in User details and kept in the Activity Log."
+              >
+                <textarea
+                  id="um-deactivate-reason"
+                  rows={2}
+                  maxLength={500}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="For example: the senior passed away, or asked to stop using the app."
+                />
+              </Field>
+            )}
           </div>
 
           <div className="um-modal-actions">

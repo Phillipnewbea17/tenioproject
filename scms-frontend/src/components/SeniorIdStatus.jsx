@@ -47,6 +47,6 @@ export default function SeniorIdStatus({ seniorCitizenId }) {
       <p className="sis-note">No OSCA ID yet{pastCount > 0 ? ` (${pastCount} earlier ${pastCount === 1 ? "ID is" : "IDs are"} inactive)` : ""}.</p>
       <button type="button" className="sis-button sis-button--primary" onClick={() => navigate(`/senior-ids?issue=${seniorCitizenId}`)}>Issue OSCA ID</button>
     </div>
-    : <p className="sis-note">This record is archived, inactive or deceased, so no OSCA ID can be issued.</p>}
+    : <p className="sis-note">{state.data.ineligibleReason || "No OSCA ID can be issued for this record."}</p>}
   </section>;
 }

@@ -715,6 +715,12 @@
   color: var(--rp-warning);
 }
 
+/* Details are missing: no OSCA ID until Edit record fills them in. */
+.rp-badge.attention {
+  background: var(--rp-warning-soft);
+  color: var(--rp-warning);
+}
+
 .rp-badge.inactive {
   background: #eceeed;
   color: #4a5552;
@@ -1309,6 +1315,13 @@
   border-radius: 10px;
   background: var(--rp-danger-soft);
   color: #991b1b;
+}
+
+/* Not an error: what is still missing from this record. */
+.rp-banner.attention {
+  border-color: #f0d3a4;
+  background: var(--rp-warning-soft);
+  color: var(--rp-warning);
 }
 
 .rp-banner svg {

@@ -47,6 +47,12 @@ class SeniorServicesController extends Controller
                 'status' => $p->status,
                 'releaseDate' => $p->release_date?->toDateString(),
                 'reference' => $p->reference ?? '',
+                // Money the senior already received, so it is their own
+                // record to see - unlike a request still being decided,
+                // where the amount is an internal fund matter. Only set
+                // once staff release it out of a fund.
+                'amount' => $p->amount !== null ? (float) $p->amount : null,
+                'receivedBy' => $p->received_by ?? '',
             ]);
 
         return response()->json($items);

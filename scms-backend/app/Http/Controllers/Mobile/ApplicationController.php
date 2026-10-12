@@ -89,12 +89,12 @@ class ApplicationController extends Controller
                 'birth_date' => $birthDate,
                 'age' => $birthDate?->age,
                 'status' => 'Pending',
-                // One app photo covers "birth certificate or valid ID".
-                'valid_id_uploaded' => $types->contains('proofOfAge'),
-                'birth_certificate_uploaded' => $types->contains('proofOfAge'),
-                'proof_residence_uploaded' => $types->contains('proofOfResidence'),
-                'photo_uploaded' => $types->contains('idPhoto'),
             ];
+
+            // One app document type per Document Verification checklist row.
+            foreach (ApplicationDocument::UPLOADED_FIELDS as $type => $column) {
+                $fields[$column] = $types->contains($type);
+            }
 
             if ($latest) {
                 // Resubmission after the office asked for corrections:

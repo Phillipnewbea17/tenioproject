@@ -6,9 +6,9 @@ use App\Models\AppAccount;
 use App\Models\LoginLog;
 use App\Models\User;
 use App\Support\ActivityLogger;
+use App\Support\UserRow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -31,13 +31,13 @@ class UserController extends Controller
         $this->requireAdministrator($request);
 
         $staff = User::orderBy('name')->get()
-            ->map(fn (User $user) => $this->transform($user));
+            ->map(fn (User $user) => UserRow::staff($user));
 
-        $appUsers = AppAccount::whereNotNull('mpin_hash')
-            ->with('seniorCitizen:id,senior_id,name')
+        $appUsers = AppAccount::withRowRelations()
+            ->whereNotNull('mpin_hash')
             ->orderBy('full_name')
             ->get()
-            ->map(fn (AppAccount $account) => $this->transformAppUser($account));
+            ->map(fn (AppAccount $account) => UserRow::appUser($account));
 
         $all = $staff->concat($appUsers)->values();
 
@@ -142,7 +142,7 @@ class UserController extends Controller
 
         ActivityLogger::record('User Management', 'Created', "User account created with role {$user->role}.", $user, $this->label($user));
 
-        return response()->json($this->transform($user), 201);
+        return response()->json(UserRow::staff($user), 201);
     }
 
     /** PUT/PATCH /api/users/{user} */
@@ -197,7 +197,7 @@ class UserController extends Controller
             $user->tokens()->delete();
         }
 
-        return response()->json($this->transform($user->fresh()));
+        return response()->json(UserRow::staff($user->fresh()));
     }
 
     /** POST /api/users/{user}/reset-password */
@@ -277,52 +277,4 @@ class UserController extends Controller
         })->values();
     }
 
-    /** Shape the frontend expects (see normalizeUser in UserManagement.jsx). */
-    private function transform(User $user): array
-    {
-        return [
-            'id' => $user->id,
-            'uid' => 'staff-' . $user->id,
-            'type' => 'staff',
-            'name' => $user->name,
-            'username' => $user->username ?? $user->name,
-            'email' => $user->email,
-            'phone' => null,
-            'role' => $user->role ?? 'User',
-            'status' => $user->status ?? 'Active',
-            'has_photo' => false,
-            'linked' => null,
-            'senior' => null,
-            'last_login_at' => $user->last_login_at
-                ? Carbon::parse($user->last_login_at)->toIso8601String()
-                : null,
-        ];
-    }
-
-    /** The same row shape for an app user (senior app account). */
-    private function transformAppUser(AppAccount $account): array
-    {
-        return [
-            'id' => $account->id,
-            'uid' => 'app_user-' . $account->id,
-            'type' => 'app_user',
-            'name' => $account->full_name ?: $account->displayPhone(),
-            'username' => null,
-            'email' => null,
-            'phone' => $account->displayPhone(),
-            // App roles (senior / familyRelative) live in their own column and
-            // can never be "Administrator", so an app user can't reach staff.
-            'role' => $account->role ?: 'senior',
-            'status' => $account->status ?? 'Active',
-            'has_photo' => (bool) $account->photo_path,
-            'linked' => $account->isLinked(),
-            'senior' => $account->seniorCitizen ? [
-                'senior_id' => $account->seniorCitizen->senior_id,
-                'name' => $account->seniorCitizen->name,
-            ] : null,
-            'last_login_at' => $account->last_login_at
-                ? Carbon::parse($account->last_login_at)->toIso8601String()
-                : null,
-        ];
-    }
 }

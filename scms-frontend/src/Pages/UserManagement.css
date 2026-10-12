@@ -668,28 +668,6 @@
   padding: 24px;
 }
 
-/* Recent logins panel */
-.um-recent {
-  margin-top: 20px;
-}
-
-.um-recent-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  padding: 16px 20px 0;
-}
-
-.um-recent-head h2 {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
 /* Badges */
 .um-badge {
   display: inline-flex;
@@ -1784,4 +1762,264 @@
   .user-management-page .um-stat-text strong {
     font-size: 34px;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* User details: photo, verification, linking, phone                          */
+/* -------------------------------------------------------------------------- */
+
+/* The shared control look, for the field types the details modals add. */
+.um-overlay input[type="tel"],
+.um-overlay input[type="date"],
+.um-overlay select,
+.um-overlay textarea {
+  width: 100%;
+  border: 1px solid var(--um-border-strong);
+  border-radius: var(--um-radius-sm);
+  background: var(--um-surface);
+  color: var(--um-text);
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.um-overlay input[type="tel"],
+.um-overlay input[type="date"],
+.um-overlay select {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.um-overlay textarea {
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.um-overlay select:focus,
+.um-overlay textarea:focus {
+  outline: none;
+  border-color: var(--um-primary);
+  box-shadow: 0 0 0 3px var(--um-focus);
+}
+
+.um-field.has-error textarea,
+.um-field.has-error select {
+  border-color: var(--um-danger);
+}
+
+/* Type and role in one badge */
+.um-badge-sep {
+  opacity: 0.55;
+}
+
+/* Extra line under a details value ("Deactivated by...", "2 hr ago") */
+.um-dd-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--um-text-muted);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.um-dd-action {
+  margin-top: 8px;
+}
+
+/* Document verification badge, linking to that page */
+.um-verify {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.um-verify svg {
+  width: 14px;
+  height: 14px;
+}
+
+.um-verify.verified {
+  background: var(--um-success-soft);
+  color: var(--um-primary);
+}
+
+.um-verify.pending {
+  background: var(--um-warning-soft);
+  color: var(--um-warning);
+}
+
+.um-verify.rejected {
+  background: var(--um-danger-soft);
+  color: var(--um-danger);
+}
+
+.um-verify:hover {
+  text-decoration: underline;
+}
+
+/* Avatar that opens the photo */
+.um-photo-btn {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.um-photo-btn:focus-visible {
+  outline: 2px solid var(--um-primary);
+  outline-offset: 3px;
+}
+
+.um-photo-zoom {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--um-surface);
+  border: 1px solid var(--um-border);
+  color: var(--um-text-muted);
+}
+
+.um-photo-zoom svg {
+  width: 12px;
+  height: 12px;
+}
+
+.um-photo-note {
+  margin: 2px 0 0;
+  color: var(--um-text-faint);
+  font-size: 12.5px;
+}
+
+.um-photo-body {
+  align-items: center;
+  text-align: center;
+}
+
+.um-photo-large {
+  max-width: 100%;
+  max-height: 60vh;
+  border-radius: var(--um-radius);
+  border: 1px solid var(--um-border);
+}
+
+/* Link to senior record */
+.um-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--um-border);
+}
+
+.um-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--um-text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.um-tab.active {
+  color: var(--um-primary);
+  border-bottom-color: var(--um-primary);
+}
+
+.um-link-search {
+  width: 100%;
+}
+
+.um-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.um-matches-empty {
+  margin: 0;
+  padding: 16px 4px;
+}
+
+.um-match {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--um-border);
+  border-radius: var(--um-radius-sm);
+  cursor: pointer;
+}
+
+.um-match:hover {
+  border-color: var(--um-primary);
+}
+
+.um-match.selected {
+  border-color: var(--um-primary);
+  background: var(--um-primary-soft);
+}
+
+.um-match input {
+  margin-top: 3px;
+  accent-color: var(--um-primary);
+}
+
+.um-match-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.um-match-text small {
+  color: var(--um-text-muted);
+  font-size: 12.5px;
+}
+
+.um-link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Change phone number */
+.um-static-value {
+  margin: 0;
+  font-weight: 600;
+}
+
+.um-phone-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.um-phone-prefix {
+  display: inline-flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--um-border-strong);
+  border-radius: var(--um-radius-sm);
+  background: var(--um-surface-alt);
+  color: var(--um-text-muted);
+  font-weight: 600;
 }

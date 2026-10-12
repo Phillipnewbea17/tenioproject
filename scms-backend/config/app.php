@@ -60,12 +60,18 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | SCMS serves one municipality (Ubay, Bohol), so the app runs on Manila
+    | time. On UTC, "today" was still yesterday until 8 AM here, so every
+    | "before_or_equal:today" rule - a pension release date, a medical
+    | completion date, a burial release or death date, a help desk date -
+    | rejected today's date for the first eight hours of every working day.
+    | Staff also read UTC timestamps in the Activity Log.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

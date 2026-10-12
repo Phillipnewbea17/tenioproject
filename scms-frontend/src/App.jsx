@@ -8,6 +8,7 @@ import Dashboard from "./Pages/Dashboard";
 import DocumentVerification from "./Pages/DocumentVerification";
 import Records from "./Pages/Records";
 import Announcements from "./Pages/Announcements";
+import Benefits from "./Pages/Benefits";
 import BirthdayList from "./Pages/BirthdayList";
 import ResetPassword from "./Pages/ResetPassword";
 import ForgotPassword from "./Pages/ForgotPassword";
@@ -173,6 +174,11 @@ export default function App() {
         <Route
           path="announcements"
           element={<Announcements />}
+        />
+
+        <Route
+          path="benefits"
+          element={<Benefits />}
         />
 
         <Route

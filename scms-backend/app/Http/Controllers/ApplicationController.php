@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Support\ActivityLogger;
+use App\Support\SeniorRecordFromApplication;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -130,20 +131,64 @@ class ApplicationController extends Controller
         $application->update($validated);
 
         $changes = ActivityLogger::changes($application);
+        $newStatus = $changes ? ($changes['status']['to'] ?? null) : null;
 
         if ($changes) {
-            $status = $changes['status']['to'] ?? null;
-            [$action, $description] = match ($status) {
+            [$action, $description] = match ($newStatus) {
                 'Verified' => ['Document approved', 'Registration documents verified and approved.'],
                 'Rejected' => ['Document rejected', 'Registration rejected' . ($application->notes ? ": {$application->notes}" : '.')],
                 null => ['Updated', 'Updated ' . ActivityLogger::fieldList($changes) . '.'],
-                default => ['Status changed', "Status changed to {$status}."],
+                default => ['Status changed', "Status changed to {$newStatus}."],
             };
 
             ActivityLogger::record('Document Verification', $action, $description, $application, $this->label($application), $changes);
         }
 
-        return response()->json($application);
+        $payload = $application->toArray();
+
+        // Approving the papers registers the senior: the record is built from
+        // the account's name and the details read off the uploaded papers.
+        // The OSCA ID itself is issued afterwards in OSCA IDs.
+        if ($newStatus === 'Verified') {
+            $payload['senior_record'] = $this->registerSenior($application);
+        }
+
+        return response()->json($payload);
+    }
+
+    /**
+     * Creates the senior's record for a newly approved application, and tells
+     * the page what happened so staff know whether it still needs work.
+     */
+    private function registerSenior(Application $application): ?array
+    {
+        $record = (new SeniorRecordFromApplication)->create($application);
+
+        if (! $record) {
+            return null;
+        }
+
+        $missing = SeniorRecordFromApplication::missingDetails($record);
+
+        ActivityLogger::record(
+            'Senior Records',
+            'Created',
+            'Senior record created from approved application ' . $application->application_id
+                . ($missing
+                    ? '. Could not read the ' . SeniorRecordFromApplication::missingDetailsSentence($record)
+                        . ' from the papers.'
+                    : '.'),
+            $record,
+            "{$record->senior_id} · {$record->name}",
+        );
+
+        return [
+            'id' => $record->id,
+            'senior_id' => $record->senior_id,
+            'name' => $record->name,
+            'status' => $record->status,
+            'missing' => $missing,
+        ];
     }
 
     public function destroy(Application $application)

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SeniorCitizen;
 use App\Models\SeniorId;
 use App\Support\ActivityLogger;
+use App\Support\SeniorRecordFromApplication;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -21,8 +22,13 @@ class SeniorIdController extends Controller
     /** Statuses that count as the senior's current ID (only one allowed). */
     private const CURRENT_STATUSES = ['Pending Issuance', 'Active', 'For Replacement'];
 
-    /** Senior record statuses that cannot receive a new ID. */
-    private const INELIGIBLE_SENIOR_STATUSES = ['Archived', 'Inactive', 'Deceased'];
+    /**
+     * Only an Active senior record can be issued an ID. A record created from
+     * an approved application starts as "Needs attention" when the papers did
+     * not give its birth date, sex or purok; staff complete it in Records >
+     * Edit record, which turns it Active.
+     */
+    private const ELIGIBLE_SENIOR_STATUS = 'Active';
 
     public function index()
     {
@@ -43,7 +49,10 @@ class SeniorIdController extends Controller
             ->get();
 
         return response()->json([
-            'eligible' => ! in_array($seniorCitizen->status, self::INELIGIBLE_SENIOR_STATUSES, true),
+            'eligible' => $seniorCitizen->status === self::ELIGIBLE_SENIOR_STATUS,
+            'ineligible_reason' => $seniorCitizen->status === self::ELIGIBLE_SENIOR_STATUS
+                ? null
+                : $this->ineligibleReason($seniorCitizen),
             'ids' => $ids->map(fn (SeniorId $id) => $this->transform($id))->values(),
         ]);
     }
@@ -68,9 +77,9 @@ class SeniorIdController extends Controller
         $senior = SeniorCitizen::findOrFail($data['senior_citizen_id']);
 
         abort_if(
-            in_array($senior->status, self::INELIGIBLE_SENIOR_STATUSES, true),
+            $senior->status !== self::ELIGIBLE_SENIOR_STATUS,
             422,
-            "An ID cannot be issued to a senior whose record is {$senior->status}."
+            $this->ineligibleReason($senior)
         );
 
         $seniorId = DB::transaction(function () use ($data, $senior, $request) {
@@ -285,6 +294,23 @@ class SeniorIdController extends Controller
         });
 
         return response()->json($this->fresh($seniorId));
+    }
+
+    /** Why this record cannot be given an ID yet, in words staff can act on. */
+    private function ineligibleReason(SeniorCitizen $senior): string
+    {
+        // A retired record is a dead end; an incomplete one only needs work.
+        if (in_array($senior->status, ['Archived', 'Inactive', 'Deceased'], true)) {
+            return "An ID cannot be issued to a senior whose record is {$senior->status}.";
+        }
+
+        if ($senior->status === SeniorCitizen::NEEDS_ATTENTION || ! $senior->isCompleteForId()) {
+            return 'This record still needs its '
+                . SeniorRecordFromApplication::missingDetailsSentence($senior)
+                . '. Complete it in Records > Edit record before issuing an ID.';
+        }
+
+        return "An ID cannot be issued to a senior whose record is {$senior->status}.";
     }
 
     private function ensureNoCurrentId(int $seniorCitizenId): void

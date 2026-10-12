@@ -5,6 +5,7 @@ use App\Http\Controllers\ApplicationController;
 use App\Http\Controllers\Mobile;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\AppAccountController;
+use App\Http\Controllers\BenefitController;
 use App\Http\Controllers\SeniorCitizenController;
 use App\Http\Controllers\SeniorIdController;
 use App\Http\Controllers\ReportController;
@@ -33,6 +34,8 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     // Senior records are never deleted (archive them instead), so there is no DELETE route.
     Route::apiResource('senior-citizens', SeniorCitizenController::class)->except(['destroy']);
     Route::apiResource('announcements', AnnouncementController::class);
+    // "Benefits & services" in the app: staff keep the cards up to date.
+    Route::apiResource('benefits', BenefitController::class);
     Route::apiResource('applications', ApplicationController::class);
     Route::apiResource('medical-requests', MedicalRequestController::class);
     Route::apiResource('burial-requests', BurialRequestController::class);
@@ -43,12 +46,21 @@ Route::middleware(['auth:sanctum', 'staff'])->group(function () {
     Route::post('/users', [UserController::class, 'store']);
     Route::match(['put', 'patch'], '/users/{user}', [UserController::class, 'update']);
     Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
-    // App users can only be activated/deactivated (no role or password edits).
+    // App users have no role or password to edit. Admins can activate or
+    // deactivate them, link them to a senior citizen record, and help a
+    // senior who lost their phone back in.
     Route::post('/app-accounts/{appAccount}/status', [AppAccountController::class, 'setStatus']);
+    Route::post('/app-accounts/{appAccount}/reset-access', [AppAccountController::class, 'resetAccess']);
+    Route::post('/app-accounts/{appAccount}/phone', [AppAccountController::class, 'changePhone']);
+    Route::get('/app-accounts/{appAccount}/senior-matches', [AppAccountController::class, 'seniorMatches']);
+    Route::post('/app-accounts/{appAccount}/link', [AppAccountController::class, 'link']);
+    Route::post('/app-accounts/{appAccount}/senior-record', [AppAccountController::class, 'createSeniorRecord']);
     // The senior's app-profile photo (private file, staff only), by app
     // account or by the senior citizen record it is linked to.
     Route::get('/app-accounts/{appAccount}/photo', [AppAccountController::class, 'photo']);
     Route::get('/senior-citizens/{seniorCitizen}/photo', [AppAccountController::class, 'seniorPhoto']);
+    // The 2x2 photo submitted with the registration, printed on the OSCA ID.
+    Route::get('/senior-citizens/{seniorCitizen}/id-photo', [SeniorCitizenController::class, 'idPhoto']);
 
     // Senior ID Management
     Route::get('/senior-ids', [SeniorIdController::class, 'index']);
@@ -129,6 +141,8 @@ Route::prefix('mobile')->group(function () {
 
     // Public, read-only: active announcements for everyone.
     Route::get('/announcements', [Mobile\AnnouncementController::class, 'index']);
+    // Public, read-only: what the law gives a senior citizen.
+    Route::get('/benefits', [Mobile\BenefitController::class, 'index']);
 
     Route::middleware(['auth:sanctum', 'app.account'])->group(function () {
         Route::post('/auth/sign-out', [Mobile\AuthController::class, 'signOut']);
@@ -148,6 +162,12 @@ Route::prefix('mobile')->group(function () {
         Route::post('/documents', [Mobile\ApplicationController::class, 'uploadDocument']);
         Route::post('/application/submit', [Mobile\ApplicationController::class, 'submit']);
         Route::get('/application', [Mobile\ApplicationController::class, 'status']);
+
+        // My ID: the OSCA ID issued on the web. Outside the "app.linked"
+        // group on purpose - it finds the record through the account's
+        // approved application and repairs a missing link.
+        Route::get('/my-senior-id', [Mobile\SeniorIdController::class, 'show']);
+        Route::get('/my-senior-id/photo', [Mobile\SeniorIdController::class, 'photo']);
 
         // Services for a linked senior citizen record.
         Route::middleware('app.linked')->group(function () {

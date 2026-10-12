@@ -110,23 +110,27 @@ it('registers from the app and follows the real status', function () {
         'file' => UploadedFile::fake()->image("{$clientId}.jpg"), 'type' => $type, 'clientId' => $clientId,
     ], ['Accept' => 'application/json']);
 
-    $upload('proofOfAge', 'proofOfAge-1')->assertCreated();
+    // The same four papers Document Verification lists.
+    $upload('validId', 'validId-1')->assertCreated();
+    $upload('birthCertificate', 'birthCertificate-1')->assertCreated();
     $upload('proofOfResidence', 'proofOfResidence-1')->assertCreated();
 
-    // Missing the ID photo.
-    withToken($this, $token)->postJson('/api/mobile/application/submit', ['documents' => ['proofOfAge-1', 'proofOfResidence-1']])
-        ->assertStatus(422);
+    // Missing the 2x2 photo.
+    withToken($this, $token)->postJson('/api/mobile/application/submit', [
+        'documents' => ['validId-1', 'birthCertificate-1', 'proofOfResidence-1'],
+    ])->assertStatus(422);
 
     $upload('idPhoto', 'idPhoto-1')->assertCreated();
     $upload('idPhoto', 'idPhoto-1')->assertCreated(); // re-sent: replaces, doesn't duplicate
 
     $reference = withToken($this, $token)->postJson('/api/mobile/application/submit', [
-        'documents' => ['proofOfAge-1', 'proofOfResidence-1', 'idPhoto-1'],
+        'documents' => ['validId-1', 'birthCertificate-1', 'proofOfResidence-1', 'idPhoto-1'],
     ])->assertCreated()->json('reference');
 
     $application = Application::where('application_id', $reference)->sole();
     expect($application)->source->toBe('App')->status->toBe('Pending')->name->toBe('Lola Ana Cruz')
-        ->contact->toBe('09171234567')->photo_uploaded->toBeTrue()->proof_residence_uploaded->toBeTrue();
+        ->contact->toBe('09171234567')->valid_id_uploaded->toBeTrue()->birth_certificate_uploaded->toBeTrue()
+        ->proof_residence_uploaded->toBeTrue()->photo_uploaded->toBeTrue();
 
     // Can't submit twice while it's being checked.
     withToken($this, $token)->postJson('/api/mobile/application/submit', ['documents' => ['x']])->assertStatus(422);
@@ -138,8 +142,9 @@ it('registers from the app and follows the real status', function () {
 
     // Staff see the photos in Document Verification.
     $documents = withToken($this, $staff)->getJson("/api/applications/{$application->id}/documents")->assertOk()->json();
-    expect($documents)->toHaveCount(3)
-        ->and(collect($documents)->pluck('type')->sort()->values()->all())->toBe(['idPhoto', 'proofOfAge', 'proofOfResidence']);
+    expect($documents)->toHaveCount(4)
+        ->and(collect($documents)->pluck('type')->sort()->values()->all())
+        ->toBe(['birthCertificate', 'idPhoto', 'proofOfResidence', 'validId']);
     withToken($this, $staff)->get("/api/application-documents/{$documents[0]['id']}/file")->assertOk();
     withToken($this, $token)->get("/api/application-documents/{$documents[0]['id']}/file")->assertForbidden();
 
@@ -156,15 +161,16 @@ it('registers from the app and follows the real status', function () {
 
     // Resubmit with a new photo: same application, back to Pending, old photos replaced.
     $upload('proofOfResidence', 'proofOfResidence-2')->assertCreated();
-    $upload('proofOfAge', 'proofOfAge-2')->assertCreated();
+    $upload('validId', 'validId-2')->assertCreated();
+    $upload('birthCertificate', 'birthCertificate-2')->assertCreated();
     $upload('idPhoto', 'idPhoto-2')->assertCreated();
     withToken($this, $token)->postJson('/api/mobile/application/submit', [
-        'documents' => ['proofOfAge-2', 'proofOfResidence-2', 'idPhoto-2'],
+        'documents' => ['validId-2', 'birthCertificate-2', 'proofOfResidence-2', 'idPhoto-2'],
     ])->assertCreated()->assertJsonPath('reference', $reference);
 
     expect($application->fresh()->status)->toBe('Pending')
-        ->and($application->documents()->count())->toBe(3)
-        ->and(Storage::disk('local')->allFiles())->toHaveCount(3);
+        ->and($application->documents()->count())->toBe(4)
+        ->and(Storage::disk('local')->allFiles())->toHaveCount(4);
 
     // Approved.
     withToken($this, $staff)->patchJson("/api/applications/{$application->id}", ['status' => 'Verified'])->assertOk();

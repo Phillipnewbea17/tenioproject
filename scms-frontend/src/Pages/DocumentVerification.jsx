@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   getApplications,
+  getApplicationDocumentFile,
+  getApplicationDocuments,
   updateApplication,
   deleteApplication,
 } from "../services/api";
@@ -30,9 +33,11 @@ import "./DocumentVerification.css";
 /* Constants                                                                  */
 /* -------------------------------------------------------------------------- */
 
-// Each required document, and the fields Laravel sends for it.
-// If your API also returns a file link (for example valid_id_url), the
-// "View" button opens it. Without a link the button stays disabled.
+// Each required document, and the fields Laravel sends for it. "key" is the
+// document type the senior app uploads (ApplicationDocument::TYPES), so a
+// photo sent from the app lands on its own row here and "View" opens it.
+// A walk-in application has no app photo; if the API returns a file link
+// (for example valid_id_url) the button opens that instead.
 const DOC_TEMPLATE = [
   {
     key: "validId",
@@ -42,27 +47,30 @@ const DOC_TEMPLATE = [
     urlField: "valid_id_url",
   },
   {
-    key: "birthCert",
+    key: "birthCertificate",
     name: "Birth certificate",
     description: "Issued by PSA or the local civil registrar",
     uploadedField: "birth_certificate_uploaded",
     urlField: "birth_certificate_url",
   },
   {
-    key: "proofResidence",
+    key: "proofOfResidence",
     name: "Proof of residence",
     description: "Barangay certificate or utility bill",
     uploadedField: "proof_residence_uploaded",
     urlField: "proof_residence_url",
   },
   {
-    key: "photo",
+    key: "idPhoto",
     name: "2x2 photo",
     description: "Recent photo with a white background",
     uploadedField: "photo_uploaded",
     urlField: "photo_url",
   },
 ];
+
+// A shared empty list, so the checklist is not rebuilt on every render.
+const NO_PHOTOS = [];
 
 const PAGE_SIZE = 8;
 const MIN_SENIOR_AGE = 60;
@@ -360,6 +368,56 @@ function RowMenu({ label, items }) {
   );
 }
 
+/**
+ * Opens one photo the senior uploaded from the app. The file is private, so
+ * it is fetched with the staff login and shown from a temporary object URL.
+ */
+function ViewPhotoButton({ document: photo }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const urlRef = useRef("");
+
+  useEffect(
+    () => () => {
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    },
+    []
+  );
+
+  const open = async () => {
+    if (urlRef.current) {
+      window.open(urlRef.current, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const blob = await getApplicationDocumentFile(photo.id);
+      urlRef.current = URL.createObjectURL(blob);
+      window.open(urlRef.current, "_blank", "noopener,noreferrer");
+    } catch (problem) {
+      setError(problem.message || "Could not load the photo.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="dv-btn dv-btn-secondary dv-btn-sm"
+      onClick={open}
+      disabled={busy}
+      title={error || `Open the ${photo.label} the senior sent from the app.`}
+    >
+      <FiEye />
+      {busy ? "Opening…" : "View"}
+    </button>
+  );
+}
+
 function ConfirmDialog({
   title,
   children,
@@ -455,10 +513,52 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
     return () => document.removeEventListener("keydown", handleKey);
   }, [onClose, saving]);
 
+  // Photos the senior sent from the app, fetched once and shared by the
+  // gallery and the checklist below it.
+  const [photos, setPhotos] = useState({ for: null, documents: [], error: "" });
+
+  useEffect(() => {
+    if (!applicant.photoCount) return undefined;
+
+    let cancelled = false;
+
+    getApplicationDocuments(applicant.id)
+      .then((documents) => {
+        if (!cancelled) setPhotos({ for: applicant.id, documents, error: "" });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPhotos({
+          for: applicant.id,
+          documents: [],
+          error: error.message || "Could not load the photos.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applicant.id, applicant.photoCount]);
+
+  // Ignore photos still held from the applicant opened before this one.
+  const photosReady = !applicant.photoCount || photos.for === applicant.id;
+  const appPhotos = photos.for === applicant.id ? photos.documents : NO_PHOTOS;
+
   const submitted = formatDateTime(applicant.submittedAt);
-  const total = applicant.documents.length;
-  const uploadedCount = applicant.documents.filter((doc) => doc.uploaded).length;
-  const missing = applicant.documents.filter((doc) => !doc.uploaded);
+
+  // Each checklist row, with the app photo that belongs to it (if any).
+  const documents = useMemo(
+    () =>
+      applicant.documents.map((doc) => ({
+        ...doc,
+        photo: appPhotos.find((photo) => photo.type === doc.key) || null,
+      })),
+    [applicant.documents, appPhotos]
+  );
+
+  const total = documents.length;
+  const uploadedCount = documents.filter((doc) => doc.uploaded).length;
+  const missing = documents.filter((doc) => !doc.uploaded);
   const complete = missing.length === 0;
   const underAge = applicant.age !== null && applicant.age < MIN_SENIOR_AGE;
 
@@ -559,7 +659,11 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
         )}
 
         {tab === "Documents" && applicant.photoCount > 0 && (
-          <ApplicationPhotos applicationId={applicant.id} />
+          <ApplicationPhotos
+            loading={!photosReady}
+            documents={appPhotos}
+            error={photosReady ? photos.error : ""}
+          />
         )}
 
         {tab === "Documents" && (
@@ -574,7 +678,7 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
             </div>
 
             <ul className="dv-doc-list">
-              {applicant.documents.map((doc) => (
+              {documents.map((doc) => (
                 <li className="dv-doc" key={doc.key}>
                   <span className={`dv-doc-icon${doc.uploaded ? " done" : ""}`}>
                     {doc.uploaded ? <FiCheckCircle /> : <FiClock />}
@@ -594,7 +698,9 @@ function ApplicantPanel({ applicant, duplicates, onClose, onDecision }) {
                       {doc.uploaded ? "Uploaded" : "Missing"}
                     </span>
 
-                    {doc.uploaded && doc.url ? (
+                    {doc.photo ? (
+                      <ViewPhotoButton document={doc.photo} />
+                    ) : doc.uploaded && doc.url ? (
                       <a
                         className="dv-btn dv-btn-secondary dv-btn-sm"
                         href={doc.url}
@@ -763,7 +869,10 @@ export default function DocumentVerification() {
     setReloadKey((key) => key + 1);
   };
 
-  const [search, setSearch] = useState("");
+  // Other pages can open this one on one applicant, for example the
+  // verification badge in User Management: /document-verification?search=...
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [activeTab, setActiveTab] = useState("All");
   const [docFilter, setDocFilter] = useState("All");
   const [sortBy, setSortBy] = useState("newest");
@@ -962,10 +1071,18 @@ export default function DocumentVerification() {
         )
       );
 
+      // Approving registers the senior: say which record was created, and
+      // whether the papers left anything for staff to fill in.
+      const record = updated?.senior_record;
+
       pushToast(
-        status === "Verified"
-          ? `${target.name} was verified.`
-          : `${target.name} was rejected.`
+        status !== "Verified"
+          ? `${target.name} was rejected.`
+          : !record
+            ? `${target.name} was verified.`
+            : record.missing?.length > 0
+              ? `${target.name} was verified. Record ${record.senior_id} still needs its ${record.missing.join(", ")} - complete it in Records.`
+              : `${target.name} was verified. Record ${record.senior_id} is ready for an OSCA ID.`
       );
       return true;
     } catch (error) {
