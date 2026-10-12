@@ -28,6 +28,7 @@ import {
   updateHelpRequest,
 } from "../services/api";
 import ModalDialog from "../components/ModalDialog";
+import RequestAttachments from "../components/RequestAttachments";
 import useSubmit from "../hooks/useSubmit";
 import { formatDate, formatDateTime, todayISO } from "../utils/dates";
 import "./HelpDesk.css";
@@ -340,6 +341,9 @@ function CaseDialog({ initial, onClose, onOpen, onAction, onNoteAdded }) {
 
           <h3 className="hd-section-title">Description</h3>
           <p className="hd-text-block">{request.description}</p>
+
+          {/* Evidence the senior attached in the app (walk-ins have none). */}
+          {request.source === "App" && <RequestAttachments module="help" recordId={request.id} />}
 
           {request.resolution && <><h3 className="hd-section-title">Resolution / action taken</h3><p className="hd-text-block hd-text-block--resolved">{request.resolution}</p></>}
           {request.remarks && <><h3 className="hd-section-title">Remarks</h3><p className="hd-text-block">{request.remarks}</p></>}

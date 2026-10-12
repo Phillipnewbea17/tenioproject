@@ -156,6 +156,9 @@ function programFund($test, string $category, int $released): Fund
 
 it('pays a pension out of a Pension fund and reverses it when voided', function () {
     $fund = programFund($this, 'Pension', 3000);
+    // A release is filed against a senior on record: the app finds it by
+    // this OSCA ID, so the controller requires the record to exist.
+    SeniorCitizen::create(['senior_id' => 'SC-1', 'name' => 'Ana', 'age' => 72, 'gender' => 'Female', 'purok' => 'Purok 1', 'status' => 'Active']);
     $pension = [
         'senior_id' => 'SC-1', 'name' => 'Ana', 'period' => 'Q4 2026', 'received_by' => 'Representative', 'status' => 'Pending',
     ];

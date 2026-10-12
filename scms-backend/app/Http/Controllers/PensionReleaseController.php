@@ -99,7 +99,14 @@ class PensionReleaseController extends Controller
     private function rules(): array
     {
         return [
-            'senior_id' => 'required|string|max:255',
+            // The senior app finds a senior's releases by this OSCA ID
+            // (GET /api/mobile/pension matches senior_citizens.senior_id),
+            // so an ID with no record would save here and then never reach
+            // the senior - with no error on either side. The web form only
+            // offers seniors from Records; this holds API callers to the
+            // same rule. Senior records are never deleted, so an existing
+            // release can always still be edited.
+            'senior_id' => 'required|string|max:255|exists:senior_citizens,senior_id',
             'name' => 'required|string|max:255',
             'period' => 'required|string|max:255',
             'release_date' => 'nullable|required_if:status,Released|date|before_or_equal:today',

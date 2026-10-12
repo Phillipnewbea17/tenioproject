@@ -383,11 +383,16 @@ async function userManagementRequest(path, options = {}) {
       .flat()
       .find(Boolean);
 
-    throw new Error(
+    const error = new Error(
       validationMessage ||
         result?.message ||
         `User Management request failed (HTTP ${response.status}).`
     );
+    // Laravel's { errors: { field: [...] } }, so forms can show the message
+    // under the field it belongs to (see extractFieldErrors).
+    error.errors = result?.errors;
+    error.status = response.status;
+    throw error;
   }
 
   return result;
@@ -453,13 +458,62 @@ export async function getSeniorPhoto(seniorCitizenId) {
   return response.blob();
 }
 
+// The 2x2 photo the senior uploaded with their registration documents,
+// printed on their OSCA ID card. Throws when no photo was submitted.
+export async function getSeniorIdPhoto(seniorCitizenId) {
+  const response = await fetch(
+    `${API_URL}/senior-citizens/${encodeURIComponent(seniorCitizenId)}/id-photo`,
+    { headers: authHeaders() }
+  );
+  if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
+  return response.blob();
+}
+
 // Activate / deactivate an app user. status: "Active" | "Inactive".
-export async function setAppUserStatus(id, status) {
+// The reason is optional and is kept with the account when deactivating.
+export async function setAppUserStatus(id, status, reason) {
+  return appAccountRequest(id, "/status", { status, reason: reason || null });
+}
+
+// Lost phone: signs the senior out everywhere and forgets every trusted
+// phone, so the next login needs a fresh texted code. The MPIN is untouched.
+export async function resetAppUserAccess(id, reason) {
+  return appAccountRequest(id, "/reset-access", { reason: reason || null });
+}
+
+// Moves the account to a new mobile number (10 digits starting with 9).
+export async function changeAppUserPhone(id, phone, reason) {
+  return appAccountRequest(id, "/phone", { phone, reason: reason || null });
+}
+
+// Senior citizen records this app user could be linked to. Without a search
+// the API suggests records with the same surname or birthday.
+// Returns { matches: [...], suggested }.
+export async function getSeniorMatches(id, search) {
+  const query = search ? `?search=${encodeURIComponent(search)}` : "";
+
   return userManagementRequest(
-    `/app-accounts/${encodeURIComponent(id)}/status`,
+    `/app-accounts/${encodeURIComponent(id)}/senior-matches${query}`
+  );
+}
+
+// Links the app user to an existing senior citizen record.
+export async function linkAppUserToSenior(id, seniorCitizenId) {
+  return appAccountRequest(id, "/link", { senior_citizen_id: seniorCitizenId });
+}
+
+// Creates a senior citizen record from the app user's details and links it.
+// data: { name, birth_date, gender, purok, contact, civil_status }
+export async function createSeniorForAppUser(id, data) {
+  return appAccountRequest(id, "/senior-record", data);
+}
+
+function appAccountRequest(id, path, body) {
+  return userManagementRequest(
+    `/app-accounts/${encodeURIComponent(id)}${path}`,
     {
       method: "POST",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     }
   );
 }
@@ -534,7 +588,9 @@ function mapMedicalRequest(row) {
 
 function medicalRequestPayload(data) {
   return {
-    reference: data.reference || null,
+    // The backend generates the reference and staff never edit it. Sending
+    // it as null made the update route reject every save ("sometimes|required").
+    ...(data.reference ? { reference: data.reference } : {}),
     senior_name: data.seniorName,
     senior_id: data.seniorId,
     purok: data.purok || null,
@@ -651,7 +707,9 @@ function mapBurialRequest(row) {
 
 function burialRequestPayload(data) {
   return {
-    reference: data.reference || null,
+    // The backend generates the reference and staff never edit it. Sending
+    // it as null made the update route reject every save ("sometimes|required").
+    ...(data.reference ? { reference: data.reference } : {}),
     senior_name: data.seniorName,
     claimant_name: data.claimantName,
     senior_id: data.seniorId || null,
@@ -824,10 +882,14 @@ export async function getSeniorIds() {
   return rows.map(mapSeniorId);
 }
 
-// { eligible, ids } for one senior, current ID first.
+// { eligible, ineligibleReason, ids } for one senior, current ID first.
 export async function getSeniorIdsForSenior(seniorCitizenId) {
   const result = await apiRequest(`/senior-citizens/${seniorCitizenId}/senior-ids`, {}, "Senior ID request");
-  return { eligible: result.eligible, ids: result.ids.map(mapSeniorId) };
+  return {
+    eligible: result.eligible,
+    ineligibleReason: result.ineligible_reason || "",
+    ids: result.ids.map(mapSeniorId),
+  };
 }
 
 export async function getSeniorId(id) {
@@ -1343,6 +1405,25 @@ export async function getApplicationDocumentFile(documentId) {
     headers: authHeaders(),
   });
   if (!response.ok) throw new Error(`Could not load the photo (HTTP ${response.status}).`);
+  return response.blob();
+}
+
+// SENIOR APP REQUEST ATTACHMENTS (photos sent with a request)
+
+// [{ id, original_name, mime_type, size, created_at }] for one request.
+// "module" is one of medical | burial | help | senior-id.
+export async function getRequestAttachments(module, recordId) {
+  const params = new URLSearchParams({ module, record: String(recordId) });
+  return apiRequest(`/request-attachments?${params}`, {}, "Attachments request");
+}
+
+// The attached file itself, as a Blob (staff login needed, like the
+// application document photos above).
+export async function getRequestAttachmentFile(attachmentId) {
+  const response = await fetch(`${API_URL}/request-attachments/${attachmentId}/file`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw new Error(`Could not load the file (HTTP ${response.status}).`);
   return response.blob();
 }
 

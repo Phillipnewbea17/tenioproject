@@ -1,0 +1,67 @@
+/* Photos a senior attached to a request, shown in a module drawer
+   ("style A" tokens, like ApplicationPhotos). */
+.ra { margin-bottom: 20px; }
+
+.ra-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.ra-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.ra-head span { color: var(--scms-muted); font-size: 13px; }
+
+.ra-note { margin: 0; color: var(--scms-muted); font-size: 14px; }
+.ra-note--error { color: #8E2F22; }
+
+.ra-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.ra-item {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--scms-border);
+  border-radius: 12px;
+  background: var(--scms-surface);
+}
+
+.ra-item a { display: block; }
+.ra-item a:focus-visible { outline: 3px solid var(--scms-focus); outline-offset: -3px; }
+
+.ra-item img,
+.ra-placeholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--scms-page);
+}
+
+.ra-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--scms-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.ra-placeholder--file { font-size: 20px; font-weight: 700; letter-spacing: 0.04em; }
+
+.ra-item figcaption { display: flex; flex-direction: column; padding: 8px 10px 10px; }
+
+.ra-item figcaption strong {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ra-item figcaption span { color: var(--scms-muted); font-size: 12px; }

@@ -22,6 +22,7 @@ import {
 } from "../services/api";
 import FundPayoutFields from "../components/FundPayoutFields";
 import ProgramFundsSummary from "../components/ProgramFundsSummary";
+import RequestAttachments from "../components/RequestAttachments";
 import useAvailableFunds from "../hooks/useAvailableFunds";
 import { cleanAmount, peso, validatePayout } from "../utils/money";
 
@@ -450,6 +451,8 @@ async function submit(event) {
             <Detail label="Submitted through">{record.source === "App" ? "Senior app" : "Walk-in (recorded by staff)"}</Detail>
           </dl>
           <h3 className="bur-section-title">Remarks</h3><p className="bur-remarks">{record.remarks || "No remarks added."}</p>
+          {/* Papers the senior attached in the app (walk-ins have none). */}
+          {record.source === "App" && <RequestAttachments module="burial" recordId={record.id} title="Attached papers" />}
         </div>
         <footer className="bur-dialog-footer"><button className="bur-button bur-button--secondary" type="button" onClick={onClose}>Close</button><button className="bur-button bur-button--primary" type="button" onClick={onEdit}><FiEdit2 aria-hidden="true" /> Edit request</button></footer>
       </> : <form className="bur-form" noValidate onSubmit={submit}>

@@ -22,6 +22,7 @@ import {
   deleteMedicalRequest,
 } from "../services/api";
 import ModalDialog from "../components/ModalDialog";
+import RequestAttachments from "../components/RequestAttachments";
 import useSubmit from "../hooks/useSubmit";
 import { formatDate as formatDay } from "../utils/dates";
 import FundPayoutFields from "../components/FundPayoutFields";
@@ -439,6 +440,8 @@ function MedicalDialog({ mode, record, onClose, onSave, onEdit, onDelete }) {
               <Detail label="Amount paid">{record.paidFromFund ? peso(record.amount) : ""}</Detail><Detail label="Paid from fund">{record.fundReference ? `${record.fundReference} · ${record.fundName}` : ""}</Detail></>}
           </dl>
           <h3 className="med-section-title">Remarks</h3><p className="med-remarks">{record.remarks || "No remarks added."}</p>
+          {/* Papers the senior attached in the app (walk-ins have none). */}
+          {record.source === "App" && <RequestAttachments module="medical" recordId={record.id} title="Attached papers" />}
         </div>
         <footer className="med-dialog-footer"><button className="med-button med-button--ghost-danger med-footer-start" type="button" onClick={onDelete}><FiTrash2 aria-hidden="true" /> Delete</button><button className="med-button med-button--secondary" type="button" onClick={onClose}>Close</button><button className="med-button med-button--primary" type="button" onClick={onEdit}><FiEdit2 aria-hidden="true" /> Edit request</button></footer>
       </> : <form className="med-form" noValidate onSubmit={handleSubmit}>

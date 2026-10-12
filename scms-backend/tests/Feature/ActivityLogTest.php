@@ -109,6 +109,10 @@ it('cannot be changed or deleted', function () {
 it('requires login for pension releases and logs them', function () {
     $this->getJson('/api/pension-releases')->assertUnauthorized();
 
+    // A release is filed against a senior on record: the app finds it by
+    // this OSCA ID, so the controller requires the record to exist.
+    SeniorCitizen::create(['senior_id' => 'SC-1', 'name' => 'Eli', 'age' => 70, 'gender' => 'Male', 'purok' => 'Purok 1', 'status' => 'Active']);
+
     $this->actingAs($this->staff)->postJson('/api/pension-releases', [
         'senior_id' => 'SC-1', 'name' => 'Eli', 'period' => 'Q4 2026', 'received_by' => 'Senior', 'status' => 'Pending',
     ])->assertCreated();
