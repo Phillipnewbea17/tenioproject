@@ -3,6 +3,7 @@
 use App\Models\ActivityLog;
 use App\Models\AppAccount;
 use App\Models\Application;
+use App\Models\PhoneVerification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -11,12 +12,16 @@ use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
-/** Sends a code and returns it (read from the "log" SMS driver). */
-function requestCode($test, string $phone = '9171234567'): string
+/**
+ * Sends a code and returns it (read from the "log" SMS driver). Every code
+ * is tied to what it is for: "register" is the only purpose that works on a
+ * number with no account yet, so it is the default here.
+ */
+function requestCode($test, string $phone = '9171234567', string $purpose = 'register'): string
 {
     $code = null;
     Log::spy();
-    $test->postJson('/api/mobile/auth/code', ['phone' => $phone])->assertOk();
+    $test->postJson('/api/mobile/auth/code', ['phone' => $phone, 'purpose' => $purpose])->assertOk();
     Log::shouldHaveReceived('info')->withArgs(function ($message) use (&$code) {
         if (preg_match('/code is (\d{4})/', $message, $match)) {
             $code = $match[1];
@@ -28,11 +33,33 @@ function requestCode($test, string $phone = '9171234567'): string
     return $code;
 }
 
+/** An MPIN the rules accept: not all one digit, not a run, not the code. */
+function testMpin(string $code): string
+{
+    return $code === '2847' ? '5193' : '2847';
+}
+
+/**
+ * A signed-in account, the way the app gets one: a texted code proves the
+ * phone, the code is traded for a short-lived verification ticket, and that
+ * ticket plus a name and a new MPIN creates the account and its session.
+ */
 function signIn($test, string $phone = '9171234567'): string
 {
     $code = requestCode($test, $phone);
 
-    return $test->postJson('/api/mobile/auth/verify', ['phone' => $phone, 'code' => $code])->assertOk()->json('token');
+    $ticket = $test->postJson('/api/mobile/auth/verify', [
+        'phone' => $phone, 'purpose' => 'register', 'code' => $code,
+    ])->assertOk()->json('verificationToken');
+
+    return $test->postJson('/api/mobile/auth/register', [
+        'phone' => $phone,
+        'verificationToken' => $ticket,
+        'firstName' => 'Ana',
+        'middleName' => 'Santos',
+        'lastName' => 'Dela Cruz',
+        'mpin' => testMpin($code),
+    ])->assertCreated()->json('token');
 }
 
 function withToken($test, string $token)
@@ -44,40 +71,74 @@ function withToken($test, string $token)
 }
 
 it('signs in with a texted code and rejects wrong or reused codes', function () {
-    $this->postJson('/api/mobile/auth/code', ['phone' => '12345'])->assertStatus(422);
+    $this->postJson('/api/mobile/auth/code', ['phone' => '12345', 'purpose' => 'register'])->assertStatus(422);
+
+    // A code is always for something; the app says which.
+    $this->postJson('/api/mobile/auth/code', ['phone' => '9171234567'])
+        ->assertStatus(422)->assertJsonPath('code', 'invalid_purpose');
 
     $code = requestCode($this);
 
     // A new code can't be requested again straight away.
-    $this->postJson('/api/mobile/auth/code', ['phone' => '9171234567'])->assertStatus(429);
+    $this->postJson('/api/mobile/auth/code', ['phone' => '9171234567', 'purpose' => 'register'])
+        ->assertStatus(429);
 
     $wrong = $code === '1111' ? '2222' : '1111';
-    $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'code' => $wrong])
+    $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'purpose' => 'register', 'code' => $wrong])
         ->assertStatus(422)->assertJsonPath('code', 'wrong_code');
 
-    $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'code' => $code])
+    // The right code buys a short-lived ticket, not a session.
+    $ticket = $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'purpose' => 'register', 'code' => $code])
         ->assertOk()
-        ->assertJsonStructure(['token', 'account' => ['phone', 'fullName', 'role']])
-        ->assertJsonPath('account.phone', '9171234567');
+        ->assertJsonStructure(['verificationToken', 'expiresIn'])
+        ->json('verificationToken');
 
     // Used codes don't work twice.
-    $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'code' => $code])
+    $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'purpose' => 'register', 'code' => $code])
         ->assertStatus(422)->assertJsonPath('code', 'expired');
 
+    // The ticket, a name and a new MPIN make the account.
+    $deviceKey = $this->postJson('/api/mobile/auth/register', [
+        'phone' => '9171234567',
+        'verificationToken' => $ticket,
+        'firstName' => 'Ana',
+        'middleName' => 'Santos',
+        'lastName' => 'Dela Cruz',
+        'mpin' => testMpin($code),
+    ])->assertCreated()
+        ->assertJsonStructure(['token', 'deviceKey', 'account' => ['phone', 'fullName', 'role']])
+        ->assertJsonPath('account.phone', '9171234567')
+        ->json('deviceKey');
+
     expect(AppAccount::count())->toBe(1)
-        ->and(ActivityLog::where('action', 'Signed in')->sole()->user_id)->toBeNull();
+        ->and(ActivityLog::where('action', 'Account created')->sole()->user_id)->toBeNull();
+
+    // The phone is trusted now, so the MPIN alone signs in again.
+    $this->postJson('/api/mobile/auth/login', [
+        'phone' => '9171234567', 'mpin' => testMpin($code), 'deviceKey' => $deviceKey,
+    ])->assertOk()->assertJsonStructure(['token']);
+
+    expect(ActivityLog::where('action', 'Signed in')->sole()->user_id)->toBeNull();
 });
 
 it('locks a code after too many wrong tries', function () {
     $code = requestCode($this);
     $wrong = $code === '1111' ? '2222' : '1111';
+    $verify = fn (string $c) => ['phone' => '9171234567', 'purpose' => 'register', 'code' => $c];
 
-    for ($i = 0; $i < 5; $i++) {
-        $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'code' => $wrong])->assertStatus(422);
+    // Four wrong tries still say "wrong code" and count down.
+    for ($i = 0; $i < PhoneVerification::MAX_ATTEMPTS - 1; $i++) {
+        $this->postJson('/api/mobile/auth/verify', $verify($wrong))
+            ->assertStatus(422)->assertJsonPath('code', 'wrong_code');
     }
 
-    $this->postJson('/api/mobile/auth/verify', ['phone' => '9171234567', 'code' => $code])
-        ->assertStatus(422)->assertJsonPath('code', 'too_many_attempts');
+    // The last one uses the code up.
+    $this->postJson('/api/mobile/auth/verify', $verify($wrong))
+        ->assertStatus(429)->assertJsonPath('code', 'too_many_attempts');
+
+    // Even the right code is refused now; a new one has to be requested.
+    $this->postJson('/api/mobile/auth/verify', $verify($code))
+        ->assertStatus(429)->assertJsonPath('code', 'too_many_attempts');
 });
 
 it('keeps app tokens and staff tokens apart', function () {
@@ -106,8 +167,11 @@ it('registers from the app and follows the real status', function () {
 
     withToken($this, $token)->getJson('/api/mobile/application')->assertJsonPath('stage', 'notStarted');
 
+    // create() not image(): the endpoint only checks the mime type and the
+    // size, and image() would need the GD extension, which this PHP build
+    // does not ship.
     $upload = fn (string $type, string $clientId) => withToken($this, $token)->post('/api/mobile/documents', [
-        'file' => UploadedFile::fake()->image("{$clientId}.jpg"), 'type' => $type, 'clientId' => $clientId,
+        'file' => UploadedFile::fake()->create("{$clientId}.jpg", 40, 'image/jpeg'), 'type' => $type, 'clientId' => $clientId,
     ], ['Accept' => 'application/json']);
 
     // The same four papers Document Verification lists.
@@ -182,6 +246,11 @@ it('registers from the app and follows the real status', function () {
 it('needs a name before submitting', function () {
     Storage::fake('local');
     $token = signIn($this);
+
+    // Create Account asks for a name, but Personal Information lets an
+    // unlinked account clear it again, and an application cannot be filed
+    // without one.
+    AppAccount::where('phone', '9171234567')->update(['full_name' => null]);
 
     withToken($this, $token)->postJson('/api/mobile/application/submit', ['documents' => ['a']])
         ->assertStatus(422)->assertJsonPath('message', 'Please add your full name in your profile first.');
